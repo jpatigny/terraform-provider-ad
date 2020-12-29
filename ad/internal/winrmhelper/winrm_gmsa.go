@@ -1,50 +1,49 @@
 package winrmhelper
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
-	"time"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/masterzen/winrm"
 )
 
 // Gmsa represents an AD Gmsa
 type Gmsa struct {
-	AccountExpirationDate             		 	date
-	AccountNotDelegated               			bool
-	AllowReversiblePasswordEncryption 			bool
-	BadLogonCount                     			int32
-	badPasswordTime                   			int64
-	badPwdCount                       			int32
-	CanonicalName                     			string
-	CN                                			string
-	Container             						string
-	CompoundIdentitySupported         			bool
-	Created                           			string
-	Description                       			string
-	DisplayName                       			string
-	DistinguishedName                 			string
-	DNSHostName                       			string
-	DoesNotRequirePreAuth             			bool
-	Enabled                           			bool
-	GUID                              			string `json:"ObjectGUID"`
-	HomedirRequired                   			bool
-	HomePage               						string
-	KerberosEncryptionType            			[]string
-	LastLogonDate                     			string
-	LockedOut                         			bool
-	logonCount                        			int32
-	ManagedPasswordIntervalInDays     			int32
-	Name										string
-	PrimaryGroup                      			string
-	PrincipalsAllowedToDelegateToAccount		[]string
-	PrincipalsAllowedToRetrieveManagedPassword 	[]string
-	SAMAccountName 								string
-	ServicePrincipalNames						[]string
-	SID            								string
-	TrustedForDelegation   						bool
+	AccountExpirationDate                      string
+	AccountNotDelegated                        bool
+	AllowReversiblePasswordEncryption          bool
+	BadLogonCount                              int32
+	badPasswordTime                            int64
+	badPwdCount                                int32
+	CanonicalName                              string
+	CN                                         string
+	Container                                  string
+	CompoundIdentitySupported                  bool
+	Created                                    string
+	Description                                string
+	DisplayName                                string
+	DistinguishedName                          string
+	DNSHostName                                string
+	DoesNotRequirePreAuth                      bool
+	Enabled                                    bool
+	GUID                                       string `json:"ObjectGUID"`
+	HomedirRequired                            bool
+	HomePage                                   string
+	KerberosEncryptionType                     []string
+	LastLogonDate                              string
+	LockedOut                                  bool
+	logonCount                                 int32
+	ManagedPasswordIntervalInDays              int32
+	Name                                       string
+	PrimaryGroup                               string
+	PrincipalsAllowedToDelegateToAccount       []string
+	PrincipalsAllowedToRetrieveManagedPassword []string
+	SAMAccountName                             string
+	ServicePrincipalNames                      []string
+	SID                                        string
+	TrustedForDelegation                       bool
 }
 
 // NewGmsa creates the Gmsa by running the New-ADServiceAccount powershell command
@@ -87,31 +86,31 @@ func (g *Gmsa) NewGmsa(client *winrm.Client) (string, error) {
 	}
 
 	if g.KerberosEncryptionType != "" {
-		cmds = append(cmds, fmt.Sprintf("-KerberosEncryptionType %q", strings.Join(g.KerberosEncryptionType,","))
+		cmds = append(cmds, fmt.Sprintf("-KerberosEncryptionType %q", strings.Join(g.KerberosEncryptionType, ",")))
 	}
 
 	if g.ManagedPasswordIntervalInDays != "" {
 		cmds = append(cmds, fmt.Sprintf("-ManagedPasswordIntervalInDays %q", g.ManagedPasswordIntervalInDays))
 	}
 
-	if g.PrincipalsAllowedToDelegateToAccount != "" {
-		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToDelegateToAccount %q", strings.Join(g.PrincipalsAllowedToDelegateToAccount,",")))
+	if g.PrincipalsAllowedToDelegateToAccount != nil {
+		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToDelegateToAccount %q", strings.Join(g.PrincipalsAllowedToDelegateToAccount, ",")))
 	}
 
-	if g.PrincipalsAllowedToRetrieveManagedPassword != "" {
-		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToRetrieveManagedPassword %q", strings.Join(g.PrincipalsAllowedToRetrieveManagedPassword,",")))
+	if g.PrincipalsAllowedToRetrieveManagedPassword != nil {
+		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToRetrieveManagedPassword %q", strings.Join(g.PrincipalsAllowedToRetrieveManagedPassword, ",")))
 	}
 
 	if g.SAMAccountName != "" {
 		cmds = append(cmds, fmt.Sprintf("-SamAccountName %q", g.SAMAccountName))
 	}
 
-	if g.ServicePrincipalNames  != "" {
-		cmds = append(cmds, fmt.Sprintf("-ServicePrincipalNames  %q", strings.Join(g.ServicePrincipalNames,",")))
-	}	
+	if g.ServicePrincipalNames != nil {
+		cmds = append(cmds, fmt.Sprintf("-ServicePrincipalNames  %q", strings.Join(g.ServicePrincipalNames, ",")))
+	}
 
 	cmds = append(cmds, fmt.Sprintf("-TrustedForDelegation $%t", g.TrustedForDelegation))
-	
+
 	result, err := RunWinRMCommand(client, cmds, true, false)
 	if err != nil {
 		return "", err
@@ -134,18 +133,18 @@ func (g *Gmsa) NewGmsa(client *winrm.Client) (string, error) {
 }
 
 // Modifygmsa updates the AD gmsa's details based on what's changed in the resource.
-func (u *gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
+func (g *gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	log.Printf("Modifying gmsa: %q", g.Name)
 	strKeyMap := map[string]string{
-		"account_expiration_date": 							"AccountExpirationDate",
-		"sam_account_name": 								"SamAccountName",
-		"display_name":     								"DisplayName",
-		"description":      								"Description",
-		"dns_host_name":    								"DNSHostName",
-		"home_page":        								"HomePage",
-		"kerberos_encryption_type":							"KerberosEncryptionType",
-		"principals_allowed_to_delegate_to_account": 		"PrincipalsAllowedToDelegateToAccount",
-		"principals_allowed_to_retrieve_managed_password":	"PrincipalsAllowedToRetrieveManagedPassword",
+		"account_expiration_date":  "AccountExpirationDate",
+		"sam_account_name":         "SamAccountName",
+		"display_name":             "DisplayName",
+		"description":              "Description",
+		"dns_host_name":            "DNSHostName",
+		"home_page":                "HomePage",
+		"kerberos_encryption_type": "KerberosEncryptionType",
+		"principals_allowed_to_delegate_to_account":       "PrincipalsAllowedToDelegateToAccount",
+		"principals_allowed_to_retrieve_managed_password": "PrincipalsAllowedToRetrieveManagedPassword",
 	}
 
 	cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q", g.GUID)}
@@ -158,10 +157,10 @@ func (u *gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	}
 
 	boolKeyMap := map[string]string{
-		"account_not_delegated ":    		"AccountNotDelegated ",
-		"compound_identity_supported":    	"CompoundIdentitySupported",
-		"enabled":                   		"Enabled",
-		"trusted_for_delegation":    		"TrustedForDelegation",
+		"account_not_delegated ":      "AccountNotDelegated ",
+		"compound_identity_supported": "CompoundIdentitySupported",
+		"enabled":                     "Enabled",
+		"trusted_for_delegation":      "TrustedForDelegation",
 	}
 
 	for k, param := range boolKeyMap {
@@ -183,7 +182,7 @@ func (u *gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	}
 
 	if d.HasChange("ServicePrincipalNames") {
-		cmd := fmt.Sprintf("Set-ADServiceAccount-Identity %q -ServicePrincipalNames $null ; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", strings.Join(g.ServicePrincipalNames,",") )
+		cmd := fmt.Sprintf("Set-ADServiceAccount-Identity %q -ServicePrincipalNames $null ; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", strings.Join(g.ServicePrincipalNames, ","))
 		result, err := RunWinRMCommand(client, []string{cmd}, false, false)
 		if err != nil {
 			return err
@@ -226,23 +225,23 @@ func (g *gmsa) DeleteGmsa(client *winrm.Client) error {
 // GetGmsaFromResource returns a gmsa struct built from Resource data
 func GetGmsaFromResource(d *schema.ResourceData) *gmsa {
 	gmsa := gmsa{
-		AccountExpirationDate   						SanitiseTFInput(d, "account_expiration_date"),
-		AccountNotDelegated:    						d.Get("account_not_delegated").(bool),
-		CompoundIdentitySupported:    					d.Get("compound_identity_supported").(bool),
-		Container:             							SanitiseTFInput(d, "container"),
-		Description:            						SanitiseTFInput(d, "description"),
-		DisplayName:            						SanitiseTFInput(d, "display_name"),
-		DNSHostName: 									SanitiseTFInput(d, "dns_host_name"),
-		Enabled:                						d.Get("enabled").(bool),
-		GUID:                   						d.Id(),
-		HomePage:               						SanitiseTFInput(d, "home_page"),
-		KerberosEncryptionType:               			SanitiseTFInput(d, "kerberos_encryption_type"),
-		ManagedPasswordIntervalInDays:               	SanitiseTFInput(d, "managed_password_interval_in_days"),
-		Name:          									SanitiseTFInput(d, "name"),
-		PrincipalsAllowedToDelegateToAccount:			SanitiseTFInput(d, "principals_allowed_to_delegate_to_account"),
-		PrincipalsAllowedToRetrieveManagedPassword:		SanitiseTFInput(d, "principals_allowed_to_retrieve_managed_password"),
-		SAMAccountName:         						SanitiseTFInput(d, "sam_account_name"),
-		TrustedForDelegation:   						d.Get("trusted_for_delegation").(bool),
+		AccountExpirationDate:                SanitiseTFInput(d, "account_expiration_date"),
+		AccountNotDelegated:                  d.Get("account_not_delegated").(bool),
+		CompoundIdentitySupported:            d.Get("compound_identity_supported").(bool),
+		Container:                            SanitiseTFInput(d, "container"),
+		Description:                          SanitiseTFInput(d, "description"),
+		DisplayName:                          SanitiseTFInput(d, "display_name"),
+		DNSHostName:                          SanitiseTFInput(d, "dns_host_name"),
+		Enabled:                              d.Get("enabled").(bool),
+		GUID:                                 d.Id(),
+		HomePage:                             SanitiseTFInput(d, "home_page"),
+		KerberosEncryptionType:               SanitiseTFInput(d, "kerberos_encryption_type"),
+		ManagedPasswordIntervalInDays:        SanitiseTFInput(d, "managed_password_interval_in_days"),
+		Name:                                 SanitiseTFInput(d, "name"),
+		PrincipalsAllowedToDelegateToAccount: SanitiseTFInput(d, "principals_allowed_to_delegate_to_account"),
+		PrincipalsAllowedToRetrieveManagedPassword: SanitiseTFInput(d, "principals_allowed_to_retrieve_managed_password"),
+		SAMAccountName:       SanitiseTFInput(d, "sam_account_name"),
+		TrustedForDelegation: d.Get("trusted_for_delegation").(bool),
 	}
 
 	return &gmsa
