@@ -20,7 +20,7 @@ type WinRMResult struct {
 // The output is converted to JSON if the json patameter is set to true.
 func RunWinRMCommand(conn *winrm.Client, cmds []string, json bool, forceArray bool) (*WinRMResult, error) {
 	if json {
-		cmds = append(cmds, "| convertto-json")
+		cmds = append(cmds, "| ConvertTo-Json")
 	}
 
 	cmd := strings.Join(cmds, " ")
@@ -84,5 +84,169 @@ func SetMachineExtensionNames(client *winrm.Client, gpoDN, value string) error {
 	if result.ExitCode != 0 {
 		return fmt.Errorf("command to set machine extension names for GPO %q failed, stderr: %s, stdout: %s", gpoDN, result.StdErr, result.Stdout)
 	}
+	return nil
+}
+
+// SliceInterfacesToStrings converts an interface slice to a string slice. The
+// function does not attempt to do any sanity checking and will panic if one of
+// the items in the slice is not a string.
+func SliceInterfacesToStrings(s []interface{}) []string {
+	var d []string
+	for _, v := range s {
+		if o, ok := v.(string); ok {
+			d = append(d, o)
+		}
+	}
+	return d
+}
+
+// AD replication
+const pscmdsyncaddomain = `
+function Sync-DomainController {
+    [CmdletBinding()]
+    param(
+        [string] $Domain = $Env:USERDNSDOMAIN
+    )
+    $DistinguishedName = (Get-ADDomain -Server $Domain).DistinguishedName
+    (Get-ADDomainController -Filter * -Server $Domain).Name | ForEach-Object {
+        Write-Verbose -Message "Sync-DomainController - Forcing synchronization $_"
+        repadmin /syncall $_ $DistinguishedName /e /A | Out-Null
+    }
+}
+`
+const pscmdmetadata = `
+function Get-WinADForestReplicationPartnerMetaData {
+    [CmdletBinding()]
+    param(
+        [switch] $Extended
+    )
+    $Replication = Get-ADReplicationPartnerMetadata -Target * -Partition * -ErrorAction SilentlyContinue -ErrorVariable ProcessErrors
+    if ($ProcessErrors) {
+        foreach ($_ in $ProcessErrors) {
+            Write-Warning -Message "Get-WinADForestReplicationPartnerMetaData - Error on server $($_.Exception.ServerName): $($_.Exception.Message)"
+        }
+    }
+    foreach ($_ in $Replication) {
+        $ServerPartner = (Resolve-DnsName -Name $_.PartnerAddress -Verbose:$false -ErrorAction SilentlyContinue)
+        $ServerInitiating = (Resolve-DnsName -Name $_.Server -Verbose:$false -ErrorAction SilentlyContinue)
+        $ReplicationObject = [ordered] @{
+            LastReplicationAttempt         = $_.LastReplicationAttempt
+            LastReplicationResult          = $_.LastReplicationResult
+            LastReplicationSuccess         = $_.LastReplicationSuccess
+        }
+        if ($Extended) {
+            $ReplicationObject.Partner = $_.Partner
+            $ReplicationObject.PartnerAddress = $_.PartnerAddress
+            $ReplicationObject.PartnerGuid = $_.PartnerGuid
+            $ReplicationObject.PartnerInvocationId = $_.PartnerInvocationId
+            $ReplicationObject.PartitionGuid = $_.PartitionGuid
+        }
+        [PSCustomObject] $ReplicationObject
+    }
+}
+`
+const pscmdstartsync = `
+function Start-ADSync {
+    $now = Get-Date
+    $sync = $false
+
+    do
+    {
+       # Force sync
+       Sync-DomainController
+
+       # Ensure replication is applied on all AD
+       $results = Get-WinADForestReplicationPartnerMetaData
+       
+       foreach ($result in $results) {
+        if ($result.LastReplicationSuccess -gt $now) {
+            $sync = $true
+        }
+        else {
+            $sync = $false
+        }
+       }
+    }
+    until ($sync)
+    return "Sync finished on all DC's"
+}
+`
+
+// ImportRepCmdlet starts replication on all domain controllers
+func ImportRepCmdlet(client *winrm.Client) error {
+	var cmd string
+	// cmdlet Sync-DomainController
+	cmd = fmt.Sprintf(pscmdsyncaddomain)
+	result, err := RunWinRMCommand(client, []string{cmd}, false, false)
+
+	if err != nil {
+		return err
+	}
+
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("command import ADSync exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	// cmdlet Get-WinADForestReplicationPartnerMetaData
+	cmd = fmt.Sprintf(pscmdmetadata)
+	result, err = RunWinRMCommand(client, []string{cmd}, false, false)
+
+	if err != nil {
+		return err
+	}
+
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("command import ADSync exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	// cmdlet Start-ADSync
+	cmd = fmt.Sprintf(pscmdstartsync)
+	result, err = RunWinRMCommand(client, []string{cmd}, false, false)
+
+	if err != nil {
+		return err
+	}
+
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("command import ADSync exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	return nil
+}
+
+// GetRepCmdlet check if replication cmdlet are available
+func GetRepCmdlet(client *winrm.Client) error {
+	cmd := fmt.Sprintf("Get-Command Start-ADSync")
+	result, err := RunWinRMCommand(client, []string{cmd}, false, false)
+
+	if err != nil {
+		return err
+	}
+
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("command 'Get-Command Start-ADSync' exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	return nil
+}
+
+// StartADSync check if replication cmdlet are available
+func StartADSync(client *winrm.Client) error {
+	cmd := fmt.Sprintf("Start-ADSync")
+	result, err := RunWinRMCommand(client, []string{cmd}, false, false)
+
+	if err != nil {
+		return err
+	}
+
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("command Start-ADSync exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
 	return nil
 }
