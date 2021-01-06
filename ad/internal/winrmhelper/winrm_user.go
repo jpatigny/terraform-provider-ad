@@ -28,7 +28,7 @@ type User struct {
 }
 
 // NewUser creates the user by running the New-ADUser powershell command
-func (u *User) NewUser(client *winrm.Client) (string, error) {
+func (u *User) NewUser(client *winrm.Client, local bool) (string, error) {
 	if u.Username == "" {
 		return "", fmt.Errorf("user principal name required")
 	}
@@ -82,7 +82,7 @@ func (u *User) NewUser(client *winrm.Client) (string, error) {
 }
 
 // ModifyUser updates the AD user's details based on what's changed in the resource.
-func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client) error {
+func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, local bool) error {
 	log.Printf("Modifying user: %q", u.PrincipalName)
 	strKeyMap := map[string]string{
 		"sam_account_name": "SamAccountName",
@@ -151,7 +151,7 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client) error {
 }
 
 //DeleteUser deletes an AD user by calling Remove-ADUser
-func (u *User) DeleteUser(client *winrm.Client) error {
+func (u *User) DeleteUser(client *winrm.Client, local bool) error {
 	cmd := fmt.Sprintf("Remove-ADUser -Identity %s -Confirm:$false", u.GUID)
 	_, err := RunWinRMCommand(client, []string{cmd}, false, false)
 	if err != nil {
@@ -190,7 +190,7 @@ func GetUserFromResource(d *schema.ResourceData) *User {
 
 // GetUserFromHost returns a User struct based on data
 // retrieved from the AD Domain Controller.
-func GetUserFromHost(client *winrm.Client, guid string) (*User, error) {
+func GetUserFromHost(client *winrm.Client, guid string, local bool) (*User, error) {
 	cmd := fmt.Sprintf("Get-ADUser -identity %q -properties *", guid)
 	result, err := RunWinRMCommand(client, []string{cmd}, true, false)
 	if err != nil {

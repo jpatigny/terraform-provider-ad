@@ -36,7 +36,7 @@ func NewOrgUnitFromResource(d *schema.ResourceData) *OrgUnit {
 
 // NewOrgUnitFromHost returns a new OrgUnit struct populated from data we get from
 // the domain controller
-func NewOrgUnitFromHost(conn *winrm.Client, guid, name, path string) (*OrgUnit, error) {
+func NewOrgUnitFromHost(conn *winrm.Client, guid, name, path string, local bool) (*OrgUnit, error) {
 	var cmd string
 	if guid != "" {
 		cmd = fmt.Sprintf("Get-ADObject -Properties * -Identity %q", guid)
@@ -63,7 +63,7 @@ func NewOrgUnitFromHost(conn *winrm.Client, guid, name, path string) (*OrgUnit, 
 }
 
 // Create creates a new OU in the AD tree
-func (o *OrgUnit) Create(conn *winrm.Client) (string, error) {
+func (o *OrgUnit) Create(conn *winrm.Client, local bool) (string, error) {
 
 	cmd := "New-ADOrganizationalUnit -Passthru"
 	if o.Name == "" {
@@ -97,7 +97,7 @@ func (o *OrgUnit) Create(conn *winrm.Client) (string, error) {
 }
 
 // Update updates an existing OU in the AD tree
-func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}) error {
+func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, local bool) error {
 	if o.DistinguishedName == "" {
 		return fmt.Errorf("Cannot update OU with name %q, distiguished name is empty", o.Name)
 	}
@@ -151,7 +151,7 @@ func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}) err
 }
 
 // Delete deletes an existing OU from an AD tree
-func (o *OrgUnit) Delete(conn *winrm.Client) error {
+func (o *OrgUnit) Delete(conn *winrm.Client, local bool) error {
 	if o.DistinguishedName == "" {
 		return fmt.Errorf("Cannot remove OU with name %q, distiguished name is empty", o.Name)
 	}

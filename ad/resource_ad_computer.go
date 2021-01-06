@@ -52,17 +52,22 @@ func resourceADComputer() *schema.Resource {
 }
 
 func resourceADComputerRead(d *schema.ResourceData, meta interface{}) error {
+	
 	if d.Id() == "" {
 		return nil
 	}
+	if meta.(ProviderConf).Configuration.UseLocally == false {
+		client, err := meta.(ProviderConf).AcquireWinRMClient()
+		if err != nil {
+			return err
+		}
+		defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
-	client, err := meta.(ProviderConf).AcquireWinRMClient()
-	if err != nil {
-		return err
+		computer, err := winrmhelper.NewComputerFromHost(client, d.Id(), false)
+	} else {
+		computer, err := winrmhelper.NewComputerFromHost(client, d.Id(), true)
 	}
-	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
-	computer, err := winrmhelper.NewComputerFromHost(client, d.Id())
 	if err != nil {
 		if strings.Contains(err.Error(), "ObjectNotFound") {
 			// Resource no longer exists
@@ -81,18 +86,25 @@ func resourceADComputerRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceADComputerCreate(d *schema.ResourceData, meta interface{}) error {
-	client, err := meta.(ProviderConf).AcquireWinRMClient()
-	if err != nil {
-		return err
+	if meta.(ProviderConf).Configuration.UseLocally == false {
+		client, err := meta.(ProviderConf).AcquireWinRMClient()
+		if err != nil {
+			return err
+		}
+		defer meta.(ProviderConf).ReleaseWinRMClient(client)
+
+		computer := winrmhelper.NewComputerFromResource(d)
+		if err != nil {
+			return fmt.Errorf("error while creating new computer object: %s", err)
+		}
+
+	} else {
+		if err != nil {
+			return fmt.Errorf("error while creating new computer object: %s", err)
+		}
 	}
-	defer meta.(ProviderConf).ReleaseWinRMClient(client)
-
-	computer := winrmhelper.NewComputerFromResource(d)
-
 	guid, err := computer.Create(client)
-	if err != nil {
-		return fmt.Errorf("error while creating new computer object: %s", err)
-	}
+
 	d.SetId(guid)
 	return resourceADComputerRead(d, meta)
 }

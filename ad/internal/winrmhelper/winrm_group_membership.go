@@ -66,7 +66,7 @@ func getMembershipList(g []*GroupMember) string {
 	return strings.Join(out, ",")
 }
 
-func (g *GroupMembership) getGroupMembers(client *winrm.Client) ([]*GroupMember, error) {
+func (g *GroupMembership) getGroupMembers(client *winrm.Client, local bool) ([]*GroupMember, error) {
 	cmd := fmt.Sprintf("Get-ADGroupMember -Identity %q", g.GroupGUID)
 
 	result, err := RunWinRMCommand(client, []string{cmd}, true, true)
@@ -88,7 +88,7 @@ func (g *GroupMembership) getGroupMembers(client *winrm.Client) ([]*GroupMember,
 	return gm, nil
 }
 
-func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation string, members []*GroupMember) error {
+func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation string, members []*GroupMember, local bool) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -134,7 +134,7 @@ func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember) 
 	return nil
 }
 
-func (g *GroupMembership) Create(client *winrm.Client) error {
+func (g *GroupMembership) Create(client *winrm.Client, local bool) error {
 	if len(g.GroupMembers) == 0 {
 		return nil
 	}
@@ -151,7 +151,7 @@ func (g *GroupMembership) Create(client *winrm.Client) error {
 	return nil
 }
 
-func (g *GroupMembership) Delete(client *winrm.Client) error {
+func (g *GroupMembership) Delete(client *winrm.Client, local bool) error {
 	cmd := fmt.Sprintf("Remove-ADGroupMember %q -Member (Get-ADGroupMember %q) -Confirm:$false", g.GroupGUID, g.GroupGUID)
 	result, err := RunWinRMCommand(client, []string{cmd}, false, false)
 	if err != nil {

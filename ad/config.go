@@ -32,6 +32,7 @@ type ProviderConfig struct {
 	KrbConfig     string
 	KrbSpn        string
 	WinRMUseNTLM  bool
+	UseLocally    bool
 }
 
 // NewConfig returns a new Config struct populated with Resource Data.
@@ -59,6 +60,7 @@ func NewConfig(d *schema.ResourceData) ProviderConfig {
 		KrbConfig:     krbConfig,
 		KrbSpn:        krbSpn,
 		WinRMUseNTLM:  winRMUseNTLM,
+		UseLocally:    false,
 	}
 
 	return cfg

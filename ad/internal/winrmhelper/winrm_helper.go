@@ -18,7 +18,7 @@ type WinRMResult struct {
 
 // RunWinRMCommand will run a powershell command and return the stdout and stderr
 // The output is converted to JSON if the json patameter is set to true.
-func RunWinRMCommand(conn *winrm.Client, cmds []string, json bool, forceArray bool) (*WinRMResult, error) {
+func RunWinRMCommand(conn *winrm.Client, cmds []string, json bool, forceArray bool, locally bool) (*WinRMResult, error) {
 	if json {
 		cmds = append(cmds, "| convertto-json")
 	}
@@ -27,7 +27,14 @@ func RunWinRMCommand(conn *winrm.Client, cmds []string, json bool, forceArray bo
 	encodedCmd := winrm.Powershell(cmd)
 	log.Printf("[DEBUG] Running command %s via powershell", cmd)
 	log.Printf("[DEBUG] Encoded command: %s", encodedCmd)
-	stdout, stderr, res, err := conn.RunWithString(encodedCmd, "")
+
+	if locally == false {
+		stdout, stderr, res, err := conn.RunWithString(encodedCmd, "")
+	} else {
+		posh := New()
+		stdout, stderr, res, err := posh.execute(encodedCmd)
+	}
+
 	log.Printf("[DEBUG] Powershell command exited with code %d", res)
 	if res != 0 {
 		log.Printf("[DEBUG] Stdout: %s, Stderr: %s", stdout, stderr)

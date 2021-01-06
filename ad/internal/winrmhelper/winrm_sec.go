@@ -41,7 +41,7 @@ func GetSecIniFromResource(d *schema.ResourceData, schemaKeys map[string]*schema
 
 // GetSecIniContents returns a byte array with the contents of the INF file
 // encoded in UTF-8 (since we get the ouput via stdout).
-func GetSecIniContents(client *winrm.Client, gpo *GPO) ([]byte, error) {
+func GetSecIniContents(client *winrm.Client, gpo *GPO, local bool) ([]byte, error) {
 	gptPath := fmt.Sprintf("%s\\Machine\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf", gpo.basePath)
 	log.Printf("[DEBUG] Getting security settings inf from %s", gptPath)
 
@@ -97,7 +97,7 @@ func UploadSecIni(conn *winrm.Client, cpConn *winrmcp.Winrmcp, gpo *GPO, iniFile
 
 // RemoveSecIni removes the ini file from the host and updates the GPO's  gpt.ini by incrementing the
 // computer version by 1.
-func RemoveSecIni(conn *winrm.Client, cpConn *winrmcp.Winrmcp, gpo *GPO) error {
+func RemoveSecIni(conn *winrm.Client, cpConn *winrmcp.Winrmcp, gpo *GPO, local bool) error {
 	gptPath := fmt.Sprintf("%s\\Machine\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf", gpo.basePath)
 	log.Printf("[DEBUG] Getting security settings inf from %s", gptPath)
 

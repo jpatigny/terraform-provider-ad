@@ -24,7 +24,7 @@ type Group struct {
 }
 
 // AddGroup creates a new group
-func (g *Group) AddGroup(client *winrm.Client) (string, error) {
+func (g *Group) AddGroup(client *winrm.Client, local bool) (string, error) {
 	log.Printf("[DEBUG] Adding group with name %q", g.Name)
 	cmds := []string{fmt.Sprintf("New-ADGroup -Passthru -Name %q -GroupScope %q -GroupCategory %q -Path %q", g.Name, g.Scope, g.Category, g.Container)}
 
@@ -54,7 +54,7 @@ func (g *Group) AddGroup(client *winrm.Client) (string, error) {
 }
 
 // ModifyGroup updates an existing group
-func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client) error {
+func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, local bool) error {
 	keyMap := map[string]string{
 		"sam_account_name": "SamAccountName",
 		"scope":            "GroupScope",
@@ -109,7 +109,7 @@ func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client) error 
 }
 
 // DeleteGroup removes a group
-func (g *Group) DeleteGroup(client *winrm.Client) error {
+func (g *Group) DeleteGroup(client *winrm.Client, local bool) error {
 	cmd := fmt.Sprintf("Remove-ADGroup -Identity %s -Confirm:$false", g.GUID)
 	_, err := RunWinRMCommand(client, []string{cmd}, false, false)
 	if err != nil {
@@ -137,7 +137,7 @@ func GetGroupFromResource(d *schema.ResourceData) *Group {
 
 // GetGroupFromHost returns a Group struct based on data
 // retrieved from the AD Controller.
-func GetGroupFromHost(client *winrm.Client, guid string) (*Group, error) {
+func GetGroupFromHost(client *winrm.Client, guid string, local bool) (*Group, error) {
 	cmd := fmt.Sprintf("Get-ADGroup -identity %q -properties *", guid)
 	result, err := RunWinRMCommand(client, []string{cmd}, true, false)
 	if err != nil {
