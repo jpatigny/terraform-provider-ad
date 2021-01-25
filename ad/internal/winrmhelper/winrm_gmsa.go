@@ -19,7 +19,6 @@ type Gmsa struct {
 	CanonicalName                              string
 	CN                                         string
 	Container                                  string
-	CompoundIdentitySupported                  bool
 	Created                                    string
 	Delegated                                  bool `json:"AccountNotDelegated"`
 	Description                                string
@@ -32,18 +31,16 @@ type Gmsa struct {
 	GUID                                       string `json:"ObjectGUID"`
 	HomedirRequired                            bool
 	HomePage                                   string
-	KerberosEncryptionType                     []string
 	LastLogonDate                              string
 	LockedOut                                  bool
 	logonCount                                 int
-	ManagedPasswordIntervalInDays              int
+	ManagedPasswordIntervalInDays              int `json:"msDS-ManagedPasswordInterval"`
 	Name                                       string
 	PrimaryGroup                               string
 	PrincipalsAllowedToDelegateToAccount       []string
 	PrincipalsAllowedToRetrieveManagedPassword []string
-	SAMAccountName                             string
+	SAMAccountName                             string `json:"SamAccountName"`
 	ServicePrincipalNames                      []string
-	SID                                        string
 	TrustedForDelegation                       bool
 }
 
@@ -54,11 +51,7 @@ func (g *Gmsa) NewGmsa(client *winrm.Client) (string, error) {
 	}
 
 	log.Printf("Adding gmsa with name: %q", g.Name)
-	cmds := []string{fmt.Sprintf("New-ADServiceAccount -Passthru -Name %q DNSHostName %q", g.Name, g.DNSHostName)}
-
-	if g.CompoundIdentitySupported == true {
-		cmds = append(cmds, fmt.Sprintf("-CompoundIdentitySupported $%t", g.CompoundIdentitySupported))
-	}
+	cmds := []string{fmt.Sprintf("New-ADServiceAccount -Passthru -Name %q -DNSHostName %q", g.Name, g.DNSHostName)}
 
 	if g.Container != "" {
 		cmds = append(cmds, fmt.Sprintf("-Path %q", g.Container))
@@ -86,28 +79,26 @@ func (g *Gmsa) NewGmsa(client *winrm.Client) (string, error) {
 		cmds = append(cmds, fmt.Sprintf("-HomePage %q", g.HomePage))
 	}
 
-	if g.KerberosEncryptionType != nil {
-		cmds = append(cmds, fmt.Sprintf("-KerberosEncryptionType %q", strings.Join(g.KerberosEncryptionType, ",")))
-	}
-
 	if g.ManagedPasswordIntervalInDays != 0 {
-		cmds = append(cmds, fmt.Sprintf("-ManagedPasswordIntervalInDays %q", g.ManagedPasswordIntervalInDays))
+		cmds = append(cmds, fmt.Sprintf("-ManagedPasswordIntervalInDays %d", g.ManagedPasswordIntervalInDays))
 	}
 
-	if g.PrincipalsAllowedToDelegateToAccount != nil {
+	if len(g.PrincipalsAllowedToDelegateToAccount) > 0 {
 		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToDelegateToAccount %q", strings.Join(g.PrincipalsAllowedToDelegateToAccount, ",")))
 	}
 
-	if g.PrincipalsAllowedToRetrieveManagedPassword != nil {
+	if len(g.PrincipalsAllowedToRetrieveManagedPassword) > 0 {
 		cmds = append(cmds, fmt.Sprintf("-PrincipalsAllowedToRetrieveManagedPassword %q", strings.Join(g.PrincipalsAllowedToRetrieveManagedPassword, ",")))
 	}
 
 	if g.SAMAccountName != "" {
 		cmds = append(cmds, fmt.Sprintf("-SamAccountName %q", g.SAMAccountName))
+	} else {
+		cmds = append(cmds, fmt.Sprintf("-SamAccountName %q", g.Name))
 	}
 
-	if g.ServicePrincipalNames != nil {
-		cmds = append(cmds, fmt.Sprintf("-ServicePrincipalNames  %q", strings.Join(g.ServicePrincipalNames, ",")))
+	if len(g.ServicePrincipalNames) > 0 {
+		cmds = append(cmds, fmt.Sprintf("-ServicePrincipalNames %q", strings.Join(g.ServicePrincipalNames, ",")))
 	}
 
 	cmds = append(cmds, fmt.Sprintf("-TrustedForDelegation $%t", g.TrustedForDelegation))
@@ -138,13 +129,13 @@ func (g *Gmsa) NewGmsa(client *winrm.Client) (string, error) {
 func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	log.Printf("Modifying gmsa: %q", g.Name)
 	strKeyMap := map[string]string{
-		"expiration":               "AccountExpirationDate",
-		"sam_account_name":         "SamAccountName",
-		"display_name":             "DisplayName",
-		"description":              "Description",
-		"dns_host_name":            "DNSHostName",
-		"home_page":                "HomePage",
-		"kerberos_encryption_type": "KerberosEncryptionType",
+		"expiration":       "AccountExpirationDate",
+		"sam_account_name": "SamAccountName",
+		"display_name":     "DisplayName",
+		"description":      "Description",
+		"dns_host_name":    "DNSHostName",
+		"home_page":        "HomePage",
+		"name":             "Name",
 		"principals_allowed_to_delegate_to_account":       "PrincipalsAllowedToDelegateToAccount",
 		"principals_allowed_to_retrieve_managed_password": "PrincipalsAllowedToRetrieveManagedPassword",
 	}
@@ -159,10 +150,9 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	}
 
 	boolKeyMap := map[string]string{
-		"delegated":                   "AccountNotDelegated ",
-		"compound_identity_supported": "CompoundIdentitySupported",
-		"enabled":                     "Enabled",
-		"trusted_for_delegation":      "TrustedForDelegation",
+		"delegated":              "AccountNotDelegated ",
+		"enabled":                "Enabled",
+		"trusted_for_delegation": "TrustedForDelegation",
 	}
 
 	for k, param := range boolKeyMap {
@@ -210,7 +200,7 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client) error {
 	return nil
 }
 
-//DeleteGmsa deletes an AD gmsa by calling Remove-ADServiceAccount
+// DeleteGmsa deletes an AD gmsa by calling Remove-ADServiceAccount
 func (g *Gmsa) DeleteGmsa(client *winrm.Client) error {
 	cmd := fmt.Sprintf("Remove-ADServiceAccount -Identity %s -Confirm:$false", g.GUID)
 	_, err := RunWinRMCommand(client, []string{cmd}, false, false)
@@ -226,46 +216,47 @@ func (g *Gmsa) DeleteGmsa(client *winrm.Client) error {
 
 // GetGmsaFromResource returns a gmsa struct built from Resource data
 func GetGmsaFromResource(d *schema.ResourceData) *Gmsa {
-
-	// kerberos
-	var kerb []string
-	kerbtypes := d.Get("kerberos_encryption_type").(*schema.Set)
-	for _, r := range kerbtypes.List() {
-		kerb = append(kerb, r.(string))
+	gmsa := Gmsa{
+		Container:                     SanitiseTFInput(d, "container"),
+		Delegated:                     d.Get("delegated").(bool),
+		Description:                   SanitiseTFInput(d, "description"),
+		DisplayName:                   SanitiseTFInput(d, "display_name"),
+		DNSHostName:                   SanitiseTFInput(d, "dns_host_name"),
+		Enabled:                       d.Get("enabled").(bool),
+		Expiration:                    SanitiseTFInput(d, "expiration"),
+		GUID:                          d.Id(),
+		HomePage:                      SanitiseTFInput(d, "home_page"),
+		ManagedPasswordIntervalInDays: d.Get("managed_password_interval_in_days").(int),
+		Name:                          SanitiseTFInput(d, "name"),
+		SAMAccountName:                SanitiseTFInput(d, "sam_account_name"),
+		TrustedForDelegation:          d.Get("trusted_for_delegation").(bool),
 	}
 
 	// delegate
-	var del []string
+	del := []string{}
 	delegate := d.Get("principals_allowed_to_delegate_to_account").(*schema.Set)
 	for _, d := range delegate.List() {
-		del = append(kerb, d.(string))
+		if d == "" {
+			continue
+		}
+		del = append(del, d.(string))
+	}
+	if del != nil {
+		gmsa.PrincipalsAllowedToDelegateToAccount = del
 	}
 
-	// retrieve password
-	var pass []string
+	// principal(s) allowed to retreieve password
+	pass := []string{}
 	passwords := d.Get("principals_allowed_to_retrieve_managed_password").(*schema.Set)
 	for _, p := range passwords.List() {
-		kerb = append(kerb, p.(string))
+		if p == "" {
+			continue
+		}
+		pass = append(pass, p.(string))
 	}
 
-	gmsa := Gmsa{
-		CompoundIdentitySupported:            d.Get("compound_identity_supported").(bool),
-		Container:                            SanitiseTFInput(d, "container"),
-		Delegated:                            d.Get("delegated").(bool),
-		Description:                          SanitiseTFInput(d, "description"),
-		DisplayName:                          SanitiseTFInput(d, "display_name"),
-		DNSHostName:                          SanitiseTFInput(d, "dns_host_name"),
-		Enabled:                              d.Get("enabled").(bool),
-		Expiration:                           SanitiseTFInput(d, "expiration"),
-		GUID:                                 d.Id(),
-		HomePage:                             SanitiseTFInput(d, "home_page"),
-		KerberosEncryptionType:               kerb,
-		ManagedPasswordIntervalInDays:        d.Get("managed_password_interval_in_days").(int),
-		Name:                                 SanitiseTFInput(d, "name"),
-		PrincipalsAllowedToDelegateToAccount: del,
-		PrincipalsAllowedToRetrieveManagedPassword: pass,
-		SAMAccountName:       SanitiseTFInput(d, "sam_account_name"),
-		TrustedForDelegation: d.Get("trusted_for_delegation").(bool),
+	if pass != nil {
+		gmsa.PrincipalsAllowedToRetrieveManagedPassword = pass
 	}
 
 	return &gmsa
