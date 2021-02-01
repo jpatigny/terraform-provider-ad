@@ -55,7 +55,7 @@ func (g *Group) AddGroup(client *winrm.Client, execLocally bool) (string, error)
 }
 
 // ModifyGroup updates an existing group
-func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLocally bool) error {
+func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLocally bool) (string, error) {
 	keyMap := map[string]string{
 		"sam_account_name": "SamAccountName",
 		"scope":            "GroupScope",
@@ -73,11 +73,11 @@ func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLo
 	if len(cmds) > 1 {
 		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Set-Group exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("command Set-Group exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -85,11 +85,11 @@ func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLo
 		cmds := []string{"Rename-ADObject -Identity %q -NewName %q", g.GUID, d.Get("name").(string)}
 		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Rename-ADObject exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("command Rename-ADObject exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -97,16 +97,16 @@ func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLo
 		cmds := []string{"Rename-ADObject -Identity %q -NewName %q", g.GUID, d.Get("name").(string)}
 		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Rename-ADObject exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("command Rename-ADObject exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 
 	}
 
-	return nil
+	return g.GUID, nil
 }
 
 // DeleteGroup removes a group

@@ -97,9 +97,9 @@ func (o *OrgUnit) Create(conn *winrm.Client, execLocally bool) (string, error) {
 }
 
 // Update updates an existing OU in the AD tree
-func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, execLocally bool) error {
+func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, execLocally bool) (string, error) {
 	if o.DistinguishedName == "" {
-		return fmt.Errorf("Cannot update OU with name %q, distiguished name is empty", o.Name)
+		return "", fmt.Errorf("Cannot update OU with name %q, distiguished name is empty", o.Name)
 	}
 	cmd := fmt.Sprintf("Set-ADOrganizationalUnit -Identity %q", o.DistinguishedName)
 
@@ -118,10 +118,10 @@ func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, exe
 	if cmd != "Set-ADOrganizationalUnit -Identity" {
 		result, err := RunWinRMCommand(conn, []string{cmd}, true, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("Set-ADOrganizationalUnit exited with a non-zero exit code %d, stderr :%s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("Set-ADOrganizationalUnit exited with a non-zero exit code %d, stderr :%s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -129,10 +129,10 @@ func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, exe
 		cmd = fmt.Sprintf("Set-ADObject -Identity %s -ProtectedFromAccidentalDeletion:$%t", o.GUID, protected.(bool))
 		result, err := RunWinRMCommand(conn, []string{cmd}, true, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("Set-ADObject exited with a non-zero exit code (%d) while updating OU's protected status, stderr :%s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("Set-ADObject exited with a non-zero exit code (%d) while updating OU's protected status, stderr :%s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -140,14 +140,14 @@ func (o *OrgUnit) Update(conn *winrm.Client, changes map[string]interface{}, exe
 		cmd = fmt.Sprintf("Rename-ADObject -Identity %q %q ", o.GUID, name.(string))
 		result, err := RunWinRMCommand(conn, []string{cmd}, true, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("Set-ADObject exited with a non-zero exit code (%d) while renaming OU, stderr :%s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("Set-ADObject exited with a non-zero exit code (%d) while renaming OU, stderr :%s", result.ExitCode, result.StdErr)
 		}
 
 	}
-	return nil
+	return o.GUID, nil
 }
 
 // Delete deletes an existing OU from an AD tree

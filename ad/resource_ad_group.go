@@ -73,6 +73,12 @@ func resourceADGroupCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	d.SetId(guid)
 	return resourceADGroupRead(d, meta)
 }
@@ -117,10 +123,16 @@ func resourceADGroupUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
-	err = g.ModifyGroup(d, client, isLocal)
+	guid, err := g.ModifyGroup(d, client, isLocal)
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	return resourceADGroupRead(d, meta)
 }
 
@@ -142,6 +154,11 @@ func resourceADGroupDelete(d *schema.ResourceData, meta interface{}) error {
 	err = g.DeleteGroup(conn, isLocal)
 	if err != nil {
 		return fmt.Errorf("while deleting group: %s", err)
+	}
+
+	err = winrmhelper.ReplicateADAllObjects(conn, isLocal)
+	if err != nil {
+		return err
 	}
 	return nil
 }

@@ -266,6 +266,12 @@ func resourceADUserCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	d.SetId(guid)
 	// We need to set this so we can then retrieve the list of attributes to look for while "reading"
 	if u.CustomAttributes != nil {
@@ -372,10 +378,16 @@ func resourceADUserUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
-	err = u.ModifyUser(d, client, isLocal)
+	guid, err := u.ModifyUser(d, client, isLocal)
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	return resourceADUserRead(d, meta)
 }
 
@@ -397,6 +409,11 @@ func resourceADUserDelete(d *schema.ResourceData, meta interface{}) error {
 	err = u.DeleteUser(client, isLocal)
 	if err != nil {
 		return fmt.Errorf("while deleting user: %s", err)
+	}
+
+	err = winrmhelper.ReplicateADAllObjects(client, isLocal)
+	if err != nil {
+		return err
 	}
 	return resourceADUserRead(d, meta)
 }

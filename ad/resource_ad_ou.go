@@ -99,6 +99,12 @@ func resourceADOUCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	d.SetId(guid)
 
 	return resourceADOURead(d, meta)
@@ -122,10 +128,16 @@ func resourceADOUUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	err = ou.Update(client, changes, isLocal)
+	guid, err := ou.Update(client, changes, isLocal)
 	if err != nil {
 		return err
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	return resourceADOURead(d, meta)
 }
 
@@ -143,5 +155,9 @@ func resourceADOUDelete(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
+	err = winrmhelper.ReplicateADAllObjects(client, isLocal)
+	if err != nil {
+		return err
+	}
 	return nil
 }

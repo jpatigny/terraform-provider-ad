@@ -84,23 +84,23 @@ func (m *Computer) Create(conn *winrm.Client, execLocally bool) (string, error) 
 }
 
 // Update updates an existing Computer objects in the AD tree
-func (m *Computer) Update(conn *winrm.Client, changes map[string]interface{}, execLocally bool) error {
+func (m *Computer) Update(conn *winrm.Client, changes map[string]interface{}, execLocally bool) (string, error) {
 	if m.GUID == "" {
-		return fmt.Errorf("cannot update computer object with name %q, guid is not set", m.Name)
+		return "", fmt.Errorf("cannot update computer object with name %q, guid is not set", m.Name)
 	}
 
 	if path, ok := changes["container"]; ok {
 		cmd := fmt.Sprintf("Move-AdObject -Identity %q -TargetPath %q", m.GUID, path.(string))
 		result, err := RunWinRMCommand(conn, []string{cmd}, true, false, execLocally)
 		if err != nil {
-			return fmt.Errorf("winrm execution failure while moving computer object: %s", err)
+			return "", fmt.Errorf("winrm execution failure while moving computer object: %s", err)
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("Move-ADObject exited with a non zero exit code (%d), stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("Move-ADObject exited with a non zero exit code (%d), stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
-	return nil
+	return m.GUID, nil
 }
 
 // Delete deletes an existing Computer objects from the AD tree

@@ -84,6 +84,11 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("while generating UUID to use as unique membership ID: %s", err)
 	}
 
+	err = winrmhelper.ReplicateADObject(client, gm.GroupGUID, isLocal)
+	if err != nil {
+		return err
+	}
+
 	id := fmt.Sprintf("%s_%s", gm.GroupGUID, membershipUUID)
 	d.SetId(id)
 
@@ -108,6 +113,11 @@ func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
+	err = winrmhelper.ReplicateADObject(client, gm.GroupGUID, isLocal)
+	if err != nil {
+		return err
+	}
+
 	return resourceADGroupMembershipRead(d, meta)
 }
 
@@ -125,6 +135,11 @@ func resourceADGroupMembershipDelete(d *schema.ResourceData, meta interface{}) e
 	}
 
 	err = gm.Delete(client, isLocal)
+	if err != nil {
+		return err
+	}
+
+	err = winrmhelper.ReplicateADAllObjects(client, isLocal)
 	if err != nil {
 		return err
 	}

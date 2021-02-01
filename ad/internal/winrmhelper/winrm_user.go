@@ -234,7 +234,7 @@ func (u *User) NewUser(client *winrm.Client, execLocally bool) (string, error) {
 }
 
 // ModifyUser updates the AD user's details based on what's changed in the resource.
-func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLocally bool) error {
+func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLocally bool) (string, error) {
 	log.Printf("Modifying user: %q", u.PrincipalName)
 	strKeyMap := map[string]string{
 		"sam_account_name": "SamAccountName",
@@ -302,7 +302,7 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLoca
 		oldValue, newValue := d.GetChange("custom_attributes")
 		newMap, err := structure.ExpandJsonFromString(newValue.(string))
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		newSortedMap := SortInnerSlice(newMap)
@@ -314,7 +314,7 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLoca
 		if oldValue.(string) != "" {
 			oldMap, err := structure.ExpandJsonFromString(oldValue.(string))
 			if err != nil {
-				return fmt.Errorf("while expanding CA json string %s: %s", oldValue.(string), err)
+				return "", fmt.Errorf("while expanding CA json string %s: %s", oldValue.(string), err)
 			}
 			oldSortedMap = SortInnerSlice(oldMap)
 		}
@@ -376,11 +376,11 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLoca
 	if len(cmds) > 1 {
 		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Set-ADUser exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("command Set-ADUser exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -388,11 +388,11 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLoca
 		cmd := fmt.Sprintf("Set-ADAccountPassword -Identity %q -Reset -NewPassword (ConvertTo-SecureString -AsPlainText %q -Force)", u.GUID, u.Password)
 		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Set-AccountPassword exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("command Set-AccountPassword exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -401,14 +401,14 @@ func (u *User) ModifyUser(d *schema.ResourceData, client *winrm.Client, execLoca
 		cmd := fmt.Sprintf("Move-AdObject -Identity %q -TargetPath %q", u.GUID, path)
 		result, err := RunWinRMCommand(client, []string{cmd}, true, false, execLocally)
 		if err != nil {
-			return fmt.Errorf("winrm execution failure while moving user object: %s", err)
+			return "", fmt.Errorf("winrm execution failure while moving user object: %s", err)
 		}
 		if result.ExitCode != 0 {
-			return fmt.Errorf("Move-ADObject exited with a non zero exit code (%d), stderr: %s", result.ExitCode, result.StdErr)
+			return "", fmt.Errorf("Move-ADObject exited with a non zero exit code (%d), stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
-	return nil
+	return u.GUID, nil
 }
 
 //DeleteUser deletes an AD user by calling Remove-ADUser

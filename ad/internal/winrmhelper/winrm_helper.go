@@ -260,3 +260,42 @@ func SortInnerSlice(m map[string]interface{}) map[string]interface{} {
 	}
 	return m
 }
+
+// ReplicateADObject will trigger the replication of an AD object to all domain controllers
+func ReplicateADObject(conn *winrm.Client, dn string, execLocally bool) error {
+	cmds := []string{fmt.Sprintf("$ad = $env:LOGONSERVER -replace '\\',''")}
+	cmds = append(cmds, fmt.Sprintf(";"))
+	cmds = append(cmds, fmt.Sprintf("Get-ADDomainController -filter * | ForEach { Sync-ADObject -Object %q -source $ad -destination $_.hostname }", dn))
+	result, err := RunWinRMCommand(conn, cmds, false, false, execLocally)
+	if err != nil {
+		return err
+	}
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("Replication of AD object exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	return nil
+}
+
+// ReplicateADAllObjects will trigger the replication of all AD object to all domain controllers
+func ReplicateADAllObjects(conn *winrm.Client, execLocally bool) error {
+	cmd := `
+	$Domain = (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
+	$DistinguishedName = (Get-ADDomain -Server $Domain).DistinguishedName
+	(Get-ADDomainController -Filter * -Server $Domain).Name | ForEach-Object {
+		repadmin /syncall $_ $DistinguishedName /e /A | Out-Null
+	}	
+	`
+	cmds := []string{fmt.Sprintf(cmd)}
+	result, err := RunWinRMCommand(conn, cmds, false, false, execLocally)
+	if err != nil {
+		return err
+	}
+	if result.ExitCode != 0 {
+		log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+		return fmt.Errorf("Replication of all AD object exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+	}
+
+	return nil
+}

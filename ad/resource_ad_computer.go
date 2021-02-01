@@ -102,6 +102,11 @@ func resourceADComputerCreate(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error while creating new computer object: %s", err)
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
 	d.SetId(guid)
 	return resourceADComputerRead(d, meta)
 }
@@ -123,10 +128,16 @@ func resourceADComputerUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	err = computer.Update(client, changes, isLocal)
+	guid, err := computer.Update(client, changes, isLocal)
 	if err != nil {
 		return fmt.Errorf("error while updating computer with id %q: %s", d.Id(), err)
 	}
+
+	err = winrmhelper.ReplicateADObject(client, guid, isLocal)
+	if err != nil {
+		return err
+	}
+
 	return resourceADComputerRead(d, meta)
 }
 
@@ -145,6 +156,11 @@ func resourceADComputerDelete(d *schema.ResourceData, meta interface{}) error {
 	err = computer.Delete(client, isLocal)
 	if err != nil {
 		return fmt.Errorf("error while deleting a computer object with id %q: %s", d.Id(), err)
+	}
+
+	err = winrmhelper.ReplicateADAllObjects(client, isLocal)
+	if err != nil {
+		return err
 	}
 
 	return resourceADComputerRead(d, meta)
