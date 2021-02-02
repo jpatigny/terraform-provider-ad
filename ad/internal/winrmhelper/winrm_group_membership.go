@@ -61,7 +61,8 @@ func unmarshalGroupMembership(input []byte) ([]*GroupMember, error) {
 func getMembershipList(g []*GroupMember) string {
 	out := []string{}
 	for _, member := range g {
-		out = append(out, member.GUID)
+		guid := fmt.Sprintf("%q", member.GUID)
+		out = append(out, guid)
 	}
 
 	return strings.Join(out, ",")
