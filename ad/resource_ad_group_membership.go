@@ -33,6 +33,12 @@ func resourceADGroupMembership() *schema.Resource {
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				MinItems:    1,
 			},
+			"server": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "If you need to perform membership between two different domains with trust.",
+				ForceNew:    true,
+			},
 		},
 	}
 }
@@ -46,8 +52,8 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
 	toks := strings.Split(d.Id(), "_")
-
-	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[0], isLocal)
+	data, err := winrmhelper.NewGroupMembershipFromState(d)
+	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[0], isLocal, data.Server)
 	if err != nil {
 		return err
 	}
@@ -56,7 +62,9 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	for idx, m := range gm.GroupMembers {
 		memberList[idx] = m.GUID
 	}
+
 	_ = d.Set("group_members", memberList)
+	_ = d.Set("server", data.Server)
 
 	return nil
 }
@@ -73,8 +81,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 	if err != nil {
 		return err
 	}
-
-	err = gm.Create(client, isLocal)
+	err = gm.Create(client, isLocal, gm.Server)
 	if err != nil {
 		return err
 	}
@@ -103,7 +110,7 @@ func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
-	err = gm.Update(client, gm.GroupMembers, isLocal)
+	err = gm.Update(client, gm.GroupMembers, isLocal, gm.Server)
 	if err != nil {
 		return err
 	}
@@ -124,7 +131,7 @@ func resourceADGroupMembershipDelete(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
-	err = gm.Delete(client, isLocal)
+	err = gm.Delete(client, isLocal, gm.Server)
 	if err != nil {
 		return err
 	}
