@@ -20,24 +20,47 @@ func resourceADGroupMembership() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 		Schema: map[string]*schema.Schema{
-			"group_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The ID of the group. This can be a GUID, a SID, a Distinguished Name, or the SAM Account Name of the group.",
-				ForceNew:    true,
+			"group": {
+				Type:     schema.TypeSet,
+				Required: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"id": {
+							Type:        schema.TypeString,
+							Required:    true,
+							ForceNew:    true,
+							Description: "The ID of the group. This can be a GUID, a SID, a Distinguished Name, or the SAM Account Name of the group.",
+						},
+
+						"server": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Used if you want to target a group from another AD domain.",
+						},
+					},
+				},
 			},
+
 			"group_members": {
-				Type:        schema.TypeSet,
-				Required:    true,
-				Description: "A list of member AD Principals. Each principal can be identified by its GUID, SID, Distinguished Name, or SAM Account Name. Only one is required",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-				MinItems:    1,
-			},
-			"server": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "If you need to perform membership between two different domains with trust.",
-				ForceNew:    true,
+				Type:     schema.TypeSet,
+				Required: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"member": {
+							Type:        schema.TypeString,
+							MinItems:    1,
+							Required:    true,
+							Description: "A list of member AD Principals. Each principal can be identified by its GUID, SID, Distinguished Name, or SAM Account Name. Only one is required",
+						},
+
+						"server": {
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Description: "If set, you can specify a member from another domain.",
+						},
+					},
+				},
 			},
 		},
 	}
