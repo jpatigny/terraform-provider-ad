@@ -75,8 +75,7 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
 	toks := strings.Split(d.Id(), "_")
-	data, err := winrmhelper.NewGroupMembershipFromState(d)
-	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[0], isLocal, data.Server)
+	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[0], isLocal)
 	if err != nil {
 		return err
 	}
@@ -87,7 +86,6 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	}
 
 	_ = d.Set("group_members", memberList)
-	_ = d.Set("server", data.Server)
 
 	return nil
 }
@@ -104,7 +102,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 	if err != nil {
 		return err
 	}
-	err = gm.Create(client, isLocal, gm.Server)
+	err = gm.Create(client, isLocal)
 	if err != nil {
 		return err
 	}
@@ -114,7 +112,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("while generating UUID to use as unique membership ID: %s", err)
 	}
 
-	id := fmt.Sprintf("%s_%s", gm.GroupGUID, membershipUUID)
+	id := fmt.Sprintf("%s_%s", gm.Group.GUID, membershipUUID)
 	d.SetId(id)
 
 	return nil
@@ -133,7 +131,7 @@ func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
-	err = gm.Update(client, gm.GroupMembers, isLocal, gm.Server)
+	err = gm.Update(client, gm.GroupMembers, isLocal)
 	if err != nil {
 		return err
 	}
@@ -154,7 +152,7 @@ func resourceADGroupMembershipDelete(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
-	err = gm.Delete(client, isLocal, gm.Server)
+	err = gm.Delete(client, isLocal)
 	if err != nil {
 		return err
 	}

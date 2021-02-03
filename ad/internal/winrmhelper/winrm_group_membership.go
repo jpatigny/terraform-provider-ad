@@ -126,7 +126,7 @@ func (g *GroupMembership) removeGroupMembers(client *winrm.Client, members []*Gr
 	return g.bulkGroupMembersOp(client, "Remove-ADGroupMember", members, execLocally)
 }
 
-func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember, execLocally bool, server string) error {
+func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember, execLocally bool) error {
 	existing, err := g.getGroupMembers(client, execLocally)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember, 
 	return nil
 }
 
-func (g *GroupMembership) Create(client *winrm.Client, execLocally bool, server string) error {
+func (g *GroupMembership) Create(client *winrm.Client, execLocally bool) error {
 	if len(g.GroupMembers) == 0 {
 		return nil
 	}
@@ -172,6 +172,8 @@ func (g *GroupMembership) Create(client *winrm.Client, execLocally bool, server 
 			cmdadd = append(cmdadd, fmt.Sprintf("-Server %q", g.Group.Server))
 		}
 		cmdadd = append(cmdadd, "; ")
+
+		// concat to one ps command
 		cmd := []string{}
 		cmd = append(cmdgetgrp, cmdgetmbr...)
 		cmd = append(cmd, cmdadd...)
@@ -187,28 +189,53 @@ func (g *GroupMembership) Create(client *winrm.Client, execLocally bool, server 
 	return nil
 }
 
-func (g *GroupMembership) Delete(client *winrm.Client, execLocally bool, server string) error {
-	cmd := []string{fmt.Sprintf("Remove-ADGroupMember %q -Members (Get-ADGroupMember %q) -Confirm:$false", g.Group.GUID, g.Group.GUID)}
-	if server != "" {
-		cmd = append(cmd, fmt.Sprintf("-Server %q", server))
+func (g *GroupMembership) Delete(client *winrm.Client, execLocally bool) error {
+
+	// get group
+	cmdgetgrp := []string{fmt.Sprintf("$group = Get-ADObject -Object %q", g.Group.GUID)}
+	if g.Group.Server != "" {
+		cmdgetgrp = append(cmdgetgrp, fmt.Sprintf("-Server %q", g.Group.Server))
 	}
-	result, err := RunWinRMCommand(client, cmd, false, false, execLocally)
-	if err != nil {
-		return fmt.Errorf("while running Remove-ADGroupMember: %s", err)
-	} else if result.ExitCode != 0 && !strings.Contains(result.StdErr, "InvalidData") {
-		return fmt.Errorf("command Remove-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+	cmdgetgrp = append(cmdgetgrp, "; ")
+
+	for _, m := range g.GroupMembers {
+		// get member to a
+		cmdgetmbr := []string{fmt.Sprintf("$member = Get-ADObject -Object %q", m.GUID)}
+		if m.Server != "" {
+			cmdgetmbr = append(cmdgetmbr, fmt.Sprintf("-Server %q", m.Server))
+		}
+		cmdgetmbr = append(cmdgetmbr, "; ")
+
+		// remove member
+		cmddel := []string{fmt.Sprintf("Set-ADGroup -Identity $group -Remove @{ 'member' = $member.DistinguishedName }")}
+		if g.Group.Server != "" {
+			cmddel = append(cmddel, fmt.Sprintf("-Server %q", g.Group.Server))
+		}
+		cmddel = append(cmddel, "; ")
+
+		// concat to one ps command
+		cmd := []string{}
+		cmd = append(cmdgetgrp, cmdgetmbr...)
+		cmd = append(cmd, cmddel...)
+
+		result, err := RunWinRMCommand(client, cmd, false, false, execLocally)
+		if err != nil {
+			return fmt.Errorf("while running Set-ADGroup Remove: %s", err)
+		} else if result.ExitCode != 0 {
+			return fmt.Errorf("command Set-ADGroup Remove exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+		}
 	}
 	return nil
 }
 
-func NewGroupMembershipFromHost(client *winrm.Client, groupID string, execLocally bool, server string) (*GroupMembership, error) {
+func NewGroupMembershipFromHost(client *winrm.Client, groupID string, execLocally bool) (*GroupMembership, error) {
 	result := &GroupMembership{
 		Group: &Grp{
 			GUID: groupID,
 		},
 	}
 
-	gm, err := result.getGroupMembers(client, execLocally, server)
+	gm, err := result.getGroupMembers(client, execLocally)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +263,8 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 			GUID:   id.(string),
 			Server: srv.(string),
 		}
+
+		result.Group = newGroup
 	}
 
 	for _, m := range members.List() {
