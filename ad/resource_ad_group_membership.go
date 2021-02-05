@@ -2,6 +2,7 @@ package ad
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
@@ -33,31 +34,32 @@ func resourceADGroupMembership() *schema.Resource {
 							Description: "The ID of the group. This can be a GUID, a SID, a Distinguished Name, or the SAM Account Name of the group.",
 						},
 
-						"server": {
+						"domain": {
 							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "Used if you want to target a group from another AD domain.",
+							Description: "Used if you want to target a group from another AD domain. You can specify domain name or directly a domain controller name",
 						},
 					},
 				},
 			},
 
-			"group_members": {
+			"members": {
 				Type:     schema.TypeSet,
 				Required: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"member": {
-							Type:        schema.TypeString,
-							MinItems:    1,
+						"id": {
+							Type:        schema.TypeList,
 							Required:    true,
 							Description: "A list of member AD Principals. Each principal can be identified by its GUID, SID, Distinguished Name, or SAM Account Name. Only one is required",
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							MinItems:    1,
 						},
 
-						"server": {
-							Type:        schema.TypeBool,
+						"domain": {
+							Type:        schema.TypeString,
 							Optional:    true,
-							Description: "If set, you can specify a member from another domain.",
+							Description: "Used if you want to target a group from another AD domain. You can specify domain name or directly a domain controller name",
 						},
 					},
 				},
@@ -67,6 +69,7 @@ func resourceADGroupMembership() *schema.Resource {
 }
 
 func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[DEBUG] Start of resourceADGroupMembershipRead function")
 	isLocal := meta.(ProviderConf).isConnectionTypeLocal()
 	client, err := meta.(ProviderConf).AcquireWinRMClient()
 	if err != nil {
@@ -91,6 +94,7 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 }
 
 func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[DEBUG] Start of resourceADGroupMembershipCreate function")
 	isLocal := meta.(ProviderConf).isConnectionTypeLocal()
 	client, err := meta.(ProviderConf).AcquireWinRMClient()
 	if err != nil {
@@ -119,6 +123,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 }
 
 func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[DEBUG] Start of resourceADGroupMembershipUpdate function")
 	isLocal := meta.(ProviderConf).isConnectionTypeLocal()
 	client, err := meta.(ProviderConf).AcquireWinRMClient()
 	if err != nil {
@@ -140,6 +145,7 @@ func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) e
 }
 
 func resourceADGroupMembershipDelete(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[DEBUG] Start of resourceADGroupMembershipDelete function")
 	isLocal := meta.(ProviderConf).isConnectionTypeLocal()
 	client, err := meta.(ProviderConf).AcquireWinRMClient()
 	if err != nil {
