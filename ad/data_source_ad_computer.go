@@ -2,6 +2,7 @@ package ad
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-provider-ad/ad/internal/winrmhelper"
@@ -58,6 +59,9 @@ func dataSourceADComputerRead(d *schema.ResourceData, meta interface{}) error {
 
 	computer, err := winrmhelper.NewComputerFromHost(client, identity, isLocal)
 	if err != nil {
+		if strings.Contains(err.Error(), "ADIdentityNotFoundException") {
+			return nil
+		}
 		return err
 	}
 
