@@ -28,7 +28,6 @@ type GroupMember struct {
 	Domain         string
 }
 
-
 func groupExistsInList(g *GroupMember, memberList []*GroupMember) bool {
 	for _, item := range memberList {
 		if g.GUID == item.GUID {
@@ -107,18 +106,22 @@ func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation str
 	}
 
 	// get group
-	cmdgetgrp := []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
+	var cmdgetgrp []string
 	if g.Group.Domain != "" {
-		cmdgetgrp = append(cmdgetgrp, fmt.Sprintf("-Server %q", g.Group.Domain))
+		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Server %q -Identity %q } catch { $group = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.Domain, g.Group.GUID, g.Group.Domain, g.Group.GUID)}
+	} else {
+		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
 	}
 	cmdgetgrp = append(cmdgetgrp, "; ")
 	log.Printf("[DEBUG][bulkGroupMembersOp] cmdlet to get group : %s", cmdgetgrp)
 
 	for _, m := range members {
-		// get member to a
-		cmdgetmbr := []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
+		// get member
+		var cmdgetmbr []string
 		if m.Domain != "" {
-			cmdgetmbr = append(cmdgetmbr, fmt.Sprintf("-Server %q", m.Domain))
+			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Server %q -Identity %q } catch { $member = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", m.Domain, m.GUID, m.Domain, m.GUID)}
+		} else {
+			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
 		}
 		cmdgetmbr = append(cmdgetmbr, "; ")
 
@@ -182,17 +185,21 @@ func (g *GroupMembership) Create(client *winrm.Client, execLocally bool) error {
 	}
 
 	// get group
-	cmdgetgrp := []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
+	var cmdgetgrp []string
 	if g.Group.Domain != "" {
-		cmdgetgrp = append(cmdgetgrp, fmt.Sprintf("-Server %q", g.Group.Domain))
+		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Server %q -Identity %q } catch { $group = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.Domain, g.Group.GUID, g.Group.Domain, g.Group.GUID)}
+	} else {
+		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
 	}
 	cmdgetgrp = append(cmdgetgrp, "; ")
 
 	for _, m := range g.GroupMembers {
 		// get member
-		cmdgetmbr := []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
+		var cmdgetmbr []string
 		if m.Domain != "" {
-			cmdgetmbr = append(cmdgetmbr, fmt.Sprintf("-Server %q", m.Domain))
+			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Server %q -Identity %q } catch { $member = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", m.Domain, m.GUID, m.Domain, m.GUID)}
+		} else {
+			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
 		}
 		cmdgetmbr = append(cmdgetmbr, "; ")
 
