@@ -44,7 +44,7 @@ func getadmember(domain string, identity string) []string {
 		member = []string{fmt.Sprintf(`try { 
 	$member = Get-ADObject -Server %q -Identity %q 
 } catch { 
-	$member = Get-ADObject -Server %q -Filter "SamAccountName -eq '%s$'"
+	$member = Get-ADObject -Server %q -Filter "SamAccountName -eq '%s' -or SamAccountName -eq '%s$'"
 }
 switch ($member.ObjectClass) {
 	'computer'                        { $member = Get-ADComputer -Server %q -Identity %q }
@@ -56,7 +56,7 @@ switch ($member.ObjectClass) {
 		member = []string{fmt.Sprintf(`try { 
 	$member = Get-ADObject -Identity %q 
 } catch { 
-	$member = Get-ADObject -Filter "SamAccountName -eq '%s$'"
+	$member = Get-ADObject --Filter "SamAccountName -eq '%s' -or SamAccountName -eq '%s$'"
 }
 switch ($member.ObjectClass) {
 	'computer'                        { $member = Get-ADComputer -Identity %q }
