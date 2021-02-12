@@ -51,19 +51,19 @@ switch ($member.ObjectClass) {
 	'user'                            { $member = Get-ADUser -Server %q -Identity %q }
 	'group'                           { $member = Get-ADGroup -Server %q -Identity %q }
 	'msDS-GroupManagedServiceAccount' { $member = Get-ADServiceAccount -Server %q -Identity %q }
-}`, domain, identity, domain, identity, domain, identity, domain, identity, domain, identity, domain, identity)}
+}`, domain, identity, domain, identity, identity, domain, identity, domain, identity, domain, identity, domain, identity)}
 	} else {
 		member = []string{fmt.Sprintf(`try { 
 	$member = Get-ADObject -Identity %q 
 } catch { 
-	$member = Get-ADObject --Filter "SamAccountName -eq '%s' -or SamAccountName -eq '%s$'"
+	$member = Get-ADObject -Filter "SamAccountName -eq '%s' -or SamAccountName -eq '%s$'"
 }
 switch ($member.ObjectClass) {
 	'computer'                        { $member = Get-ADComputer -Identity %q }
 	'user'                            { $member = Get-ADUser -Identity %q }
 	'group'                           { $member = Get-ADGroup -Identity %q }
 	'msDS-GroupManagedServiceAccount' { $member = Get-ADServiceAccount -Identity %q }
-}`, identity, identity, identity, identity, identity, identity)}
+}`, identity, identity, identity, identity, identity, identity, identity)}
 	}
 	member = append(member, fmt.Sprintf("\n"))
 	return member
