@@ -28,6 +28,47 @@ type GroupMember struct {
 	Domain         string
 }
 
+func getadgroup(domain string, identity string) []string {
+	cmd := []string{fmt.Sprintf("$group = Get-ADGroup -Identity %q", identity)}
+	if domain != "" {
+		cmd = append(cmd, fmt.Sprintf("-Server %q", domain))
+	}
+	cmd = append(cmd, fmt.Sprintf("\n"))
+	return cmd
+}
+
+func getadmember(domain string, identity string) []string {
+	var member []string
+
+	if domain != "" {
+		member = []string{fmt.Sprintf(`try { 
+	$member = Get-ADObject -Server %q -Identity %q 
+} catch { 
+	$member = Get-ADObject -Server %q -Filter "SamAccountName -eq '%s$'"
+}
+switch ($member.ObjectClass) {
+	'computer'                        { $member = Get-ADComputer -Server %q -Identity %q }
+	'user'                            { $member = Get-ADUser -Server %q -Identity %q }
+	'group'                           { $member = Get-ADGroup -Server %q -Identity %q }
+	'msDS-GroupManagedServiceAccount' { $member = Get-ADServiceAccount -Server %q -Identity %q }
+}`, domain, identity, domain, identity, domain, identity, domain, identity, domain, identity, domain, identity)}
+	} else {
+		member = []string{fmt.Sprintf(`try { 
+	$member = Get-ADObject -Identity %q 
+} catch { 
+	$member = Get-ADObject -Filter "SamAccountName -eq '%s$'"
+}
+switch ($member.ObjectClass) {
+	'computer'                        { $member = Get-ADComputer -Identity %q }
+	'user'                            { $member = Get-ADUser -Identity %q }
+	'group'                           { $member = Get-ADGroup -Identity %q }
+	'msDS-GroupManagedServiceAccount' { $member = Get-ADServiceAccount -Identity %q }
+}`, identity, identity, identity, identity, identity, identity)}
+	}
+	member = append(member, fmt.Sprintf("\n"))
+	return member
+}
+
 func groupExistsInList(g *GroupMember, memberList []*GroupMember) bool {
 	for _, item := range memberList {
 		if g.GUID == item.GUID {
@@ -76,8 +117,10 @@ func getMembershipList(g []*GroupMember) string {
 
 func (g *GroupMembership) getGroupMembers(client *winrm.Client, execLocally bool) ([]*GroupMember, error) {
 	log.Printf("[DEBUG] Start getGroupMembers function")
+	log.Printf("[DEBUG][getGroupMembers] Group GUID: %s", g.Group.GUID)
 	cmd := []string{fmt.Sprintf("Get-ADGroupMember -Identity %q", g.Group.GUID)}
 	if g.Group.Domain != "" {
+		log.Printf("[DEBUG][getGroupMembers] Domain: %s", g.Group.Domain)
 		cmd = append(cmd, fmt.Sprintf("-Server %q", g.Group.Domain))
 	}
 	result, err := RunWinRMCommand(client, cmd, true, true, execLocally)
@@ -107,30 +150,28 @@ func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation str
 
 	// get group
 	var cmdgetgrp []string
+
 	if g.Group.Domain != "" {
-		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Server %q -Identity %q } catch { $group = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.Domain, g.Group.GUID, g.Group.Domain, g.Group.GUID)}
+		cmdgetgrp = getadgroup(g.Group.Domain, g.Group.GUID)
 	} else {
-		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
+		cmdgetgrp = getadgroup("", g.Group.GUID)
 	}
-	cmdgetgrp = append(cmdgetgrp, "; ")
-	log.Printf("[DEBUG][bulkGroupMembersOp] cmdlet to get group : %s", cmdgetgrp)
 
 	for _, m := range members {
+
 		// get member
 		var cmdgetmbr []string
 		if m.Domain != "" {
-			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Server %q -Identity %q } catch { $member = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", m.Domain, m.GUID, m.Domain, m.GUID)}
+			cmdgetmbr = getadmember(m.Domain, m.GUID)
 		} else {
-			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
+			cmdgetmbr = getadmember("", m.GUID)
 		}
-		cmdgetmbr = append(cmdgetmbr, "; ")
 
 		// action
-		cmdaction := []string{fmt.Sprintf("Set-ADGroup -Identity %q -%s @{ 'member' = $member.DistinguishedName }", g.Group.GUID, operation)}
+		cmdaction := []string{fmt.Sprintf("%s -Identity $group -Members $member -Confirm:$false", operation)}
 		if g.Group.Domain != "" {
 			cmdaction = append(cmdaction, fmt.Sprintf("-Server %q", g.Group.Domain))
 		}
-		cmdaction = append(cmdaction, "; ")
 
 		// concat to one ps command
 		cmd := []string{}
@@ -140,9 +181,9 @@ func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation str
 
 		result, err := RunWinRMCommand(client, cmd, false, false, execLocally)
 		if err != nil {
-			return fmt.Errorf("while running Set-ADGroup %s : %s", operation, err)
+			return fmt.Errorf("while running %s : %s", operation, err)
 		} else if result.ExitCode != 0 {
-			return fmt.Errorf("command Set-ADGroup %s exited with a non-zero exit code(%d), stderr: %s, stdout: %s", operation, result.ExitCode, result.StdErr, result.Stdout)
+			return fmt.Errorf("command %s exited with a non-zero exit code(%d), stderr: %s, stdout: %s", operation, result.ExitCode, result.StdErr, result.Stdout)
 		}
 	}
 	log.Printf("[DEBUG] End of bulkGroupMembersOp function")
@@ -150,11 +191,11 @@ func (g *GroupMembership) bulkGroupMembersOp(client *winrm.Client, operation str
 }
 
 func (g *GroupMembership) addGroupMembers(client *winrm.Client, members []*GroupMember, execLocally bool) error {
-	return g.bulkGroupMembersOp(client, "Add", members, execLocally)
+	return g.bulkGroupMembersOp(client, "Add-ADGroupMember", members, execLocally)
 }
 
 func (g *GroupMembership) removeGroupMembers(client *winrm.Client, members []*GroupMember, execLocally bool) error {
-	return g.bulkGroupMembersOp(client, "Remove", members, execLocally)
+	return g.bulkGroupMembersOp(client, "Remove-ADGroupMember", members, execLocally)
 }
 
 func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember, execLocally bool) error {
@@ -186,41 +227,40 @@ func (g *GroupMembership) Create(client *winrm.Client, execLocally bool) error {
 
 	// get group
 	var cmdgetgrp []string
+
 	if g.Group.Domain != "" {
-		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Server %q -Identity %q } catch { $group = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.Domain, g.Group.GUID, g.Group.Domain, g.Group.GUID)}
+		cmdgetgrp = getadgroup(g.Group.Domain, g.Group.GUID)
 	} else {
-		cmdgetgrp = []string{fmt.Sprintf("try { $group = Get-ADObject -Identity %q } catch { $group = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", g.Group.GUID, g.Group.GUID)}
+		cmdgetgrp = getadgroup("", g.Group.GUID)
 	}
-	cmdgetgrp = append(cmdgetgrp, "; ")
 
 	for _, m := range g.GroupMembers {
+
 		// get member
 		var cmdgetmbr []string
 		if m.Domain != "" {
-			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Server %q -Identity %q } catch { $member = Get-ADObject -Server %q -Filter \"SamAccountName -eq `\"%s`\"\"}", m.Domain, m.GUID, m.Domain, m.GUID)}
+			cmdgetmbr = getadmember(m.Domain, m.GUID)
 		} else {
-			cmdgetmbr = []string{fmt.Sprintf("try { $member = Get-ADObject -Identity %q } catch { $member = Get-ADObject -Filter \"SamAccountName -eq `\"%s`\"\"}", m.GUID, m.GUID)}
+			cmdgetmbr = getadmember("", m.GUID)
 		}
-		cmdgetmbr = append(cmdgetmbr, "; ")
 
-		// add member
-		cmdadd := []string{fmt.Sprintf("Set-ADGroup -Identity $group -Add @{ 'member' = $member.DistinguishedName }")}
+		// add
+		add := []string{fmt.Sprintf("Add-ADGroupMember -Identity $group -Members $member -Confirm:$false")}
 		if g.Group.Domain != "" {
-			cmdadd = append(cmdadd, fmt.Sprintf("-Server %q", g.Group.Domain))
+			add = append(add, fmt.Sprintf("-Server %q", g.Group.Domain))
 		}
-		cmdadd = append(cmdadd, "; ")
 
 		// concat to one ps command
 		cmd := []string{}
 		cmd = append(cmdgetgrp, cmdgetmbr...)
-		cmd = append(cmd, cmdadd...)
+		cmd = append(cmd, add...)
 
 		log.Printf("[DEBUG][Create] cmdlet to be executed : %s", cmd)
 		result, err := RunWinRMCommand(client, cmd, false, false, execLocally)
 		if err != nil {
-			return fmt.Errorf("while running Set-ADGroup Add: %s", err)
+			return fmt.Errorf("while running Add-ADGroupMember: %s", err)
 		} else if result.ExitCode != 0 {
-			return fmt.Errorf("command Set-ADGroup Add exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+			return fmt.Errorf("command Add-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
 		}
 	}
 	log.Printf("[DEBUG] End of Create function")
@@ -230,38 +270,40 @@ func (g *GroupMembership) Create(client *winrm.Client, execLocally bool) error {
 func (g *GroupMembership) Delete(client *winrm.Client, execLocally bool) error {
 	log.Printf("[DEBUG] Start of Delete function")
 	// get group
-	cmdgetgrp := []string{fmt.Sprintf("$group = Get-ADObject -Identity %q", g.Group.GUID)}
+	var cmdgetgrp []string
+
 	if g.Group.Domain != "" {
-		cmdgetgrp = append(cmdgetgrp, fmt.Sprintf("-Server %q", g.Group.Domain))
+		cmdgetgrp = getadgroup(g.Group.Domain, g.Group.GUID)
+	} else {
+		cmdgetgrp = getadgroup("", g.Group.GUID)
 	}
-	cmdgetgrp = append(cmdgetgrp, "; ")
 
 	for _, m := range g.GroupMembers {
-		// get member to a
-		cmdgetmbr := []string{fmt.Sprintf("$member = Get-ADObject -Identity %q", m.GUID)}
+		// get member
+		var cmdgetmbr []string
 		if m.Domain != "" {
-			cmdgetmbr = append(cmdgetmbr, fmt.Sprintf("-Server %q", m.Domain))
+			cmdgetmbr = getadmember(m.Domain, m.GUID)
+		} else {
+			cmdgetmbr = getadmember("", m.GUID)
 		}
-		cmdgetmbr = append(cmdgetmbr, "; ")
 
-		// remove member
-		cmddel := []string{fmt.Sprintf("Set-ADGroup -Identity $group -Remove @{ 'member' = $member.DistinguishedName }")}
+		// remove
+		del := []string{fmt.Sprintf("Remove-ADGroupMember -Identity $group -Members $member -Confirm:$false")}
 		if g.Group.Domain != "" {
-			cmddel = append(cmddel, fmt.Sprintf("-Server %q", g.Group.Domain))
+			del = append(del, fmt.Sprintf("-Server %q", g.Group.Domain))
 		}
-		cmddel = append(cmddel, "; ")
 
 		// concat to one ps command
 		cmd := []string{}
 		cmd = append(cmdgetgrp, cmdgetmbr...)
-		cmd = append(cmd, cmddel...)
+		cmd = append(cmd, del...)
 
-		log.Printf("[DEBUG][Create] cmdlet to be executed : %s", cmd)
+		log.Printf("[DEBUG][Delete] cmdlet to be executed : %s", cmd)
 		result, err := RunWinRMCommand(client, cmd, false, false, execLocally)
 		if err != nil {
-			return fmt.Errorf("while running Set-ADGroup Remove: %s", err)
+			return fmt.Errorf("while running Remove-ADGroupMember: %s", err)
 		} else if result.ExitCode != 0 {
-			return fmt.Errorf("command Set-ADGroup Remove exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+			return fmt.Errorf("command Remove-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
 		}
 	}
 	log.Printf("[DEBUG] End of Delete function")
@@ -300,6 +342,8 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		}
 		id := g.(map[string]interface{})["id"]
 		srv := g.(map[string]interface{})["domain"]
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group ID: %s", id)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", srv)
 		newGroup := &Grp{
 			GUID:   id.(string),
 			Domain: srv.(string),
@@ -315,7 +359,8 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 
 		mbrGUID := m.(map[string]interface{})["id"]
 		srv := m.(map[string]interface{})["domain"]
-
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", mbrGUID)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member Domain: %s", srv)
 		for _, m := range mbrGUID.([]interface{}) {
 			newMember := &GroupMember{
 				GUID:   m.(string),
@@ -324,6 +369,8 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 			result.GroupMembers = append(result.GroupMembers, newMember)
 		}
 	}
-	log.Printf("[DEBUG][NewGroupMembershipFromState] result : %s", result)
+	resJSON, _ := json.Marshal(result)
+
+	log.Printf("[DEBUG][NewGroupMembershipFromState] result : %s", resJSON)
 	return result, nil
 }

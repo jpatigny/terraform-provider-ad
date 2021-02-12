@@ -77,8 +77,8 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	}
 	defer meta.(ProviderConf).ReleaseWinRMClient(client)
 
-	toks := strings.Split(d.Id(), "_")
-	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[0], isLocal)
+	toks := strings.SplitN(d.Id(), "_", 2)
+	gm, err := winrmhelper.NewGroupMembershipFromHost(client, toks[1], isLocal)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("while generating UUID to use as unique membership ID: %s", err)
 	}
 
-	id := fmt.Sprintf("%s_%s", gm.Group.GUID, membershipUUID)
+	id := fmt.Sprintf("%s_%s", membershipUUID, gm.Group.GUID)
 	d.SetId(id)
 
 	return nil
