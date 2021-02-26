@@ -109,7 +109,7 @@ func Provider() *schema.Provider {
 			"ad_computer":         resourceADComputer(),
 			"ad_ou":               resourceADOU(),
 			"ad_gplink":           resourceADGPLink(),
-			"ad_domain":           resourceADDNSSuffix(),
+			"ad_domain":           resourceADDomain(),
 		},
 		ConfigureFunc: initProviderConfig,
 	}
