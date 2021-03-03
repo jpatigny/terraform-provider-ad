@@ -118,10 +118,72 @@ func getMembershipList(g []*GroupMember) string {
 func (g *GroupMembership) getGroupMembers(client *winrm.Client, execLocally bool) ([]*GroupMember, error) {
 	log.Printf("[DEBUG] Start getGroupMembers function")
 	log.Printf("[DEBUG][getGroupMembers] Group GUID: %s", g.Group.GUID)
-	cmd := []string{fmt.Sprintf("Get-ADGroupMember -Identity %q", g.Group.GUID)}
+	var cmd []string
 	if g.Group.Domain != "" {
 		log.Printf("[DEBUG][getGroupMembers] Domain: %s", g.Group.Domain)
-		cmd = append(cmd, fmt.Sprintf("-Server %q", g.Group.Domain))
+		cmd = []string{fmt.Sprintf(`try {
+$result = Get-ADGroupMember -Identity %q -Server %q
+}
+catch {
+	$translatedMembers = @()
+	$members = (Get-ADGroup %q -Properties member -Server %q).member
+	foreach($m in $members) {
+		$name = ""
+		$dn = $([adsi]$("LDAP://$m")).DistinguishedName
+		$ado = Get-ADObject -Identity $($dn)
+		if ($ado.Name -match "^S-\d-\d-\d\d") {
+			try {
+				$name =  ([System.Security.Principal.SecurityIdentifier] $ado.Name).Translate([System.Security.Principal.NTAccount]).Value
+			}
+			catch {
+				$name = $ado.Name
+			}
+		}
+		else {
+		  $name = $ado.Name
+		}
+		$translatedMembers += [PSCustomObject] @{
+		  SamAccountName = $ado.SamAccountName
+		  DistinguishedName = $ado.DistinguishedName
+		  objectGUID = $ado.ObjectGUID
+		  Name = $name
+		}
+	}
+	$result = $translatedMembers
+}
+$result`, g.Group.GUID, g.Group.Domain, g.Group.GUID, g.Group.Domain)}
+	} else {
+		cmd = []string{fmt.Sprintf(`try {
+$result = Get-ADGroupMember -Identity %q
+}
+catch {
+	$translatedMembers = @()
+	$members = (Get-ADGroup %q -Properties member).member
+	foreach($m in $members) {
+		$name = ""
+		$dn = $([adsi]$("LDAP://$m")).DistinguishedName
+		$ado = Get-ADObject -Identity $($dn)
+		if ($ado.Name -match "^S-\d-\d-\d\d") {
+			try {
+				$name =  ([System.Security.Principal.SecurityIdentifier] $ado.Name).Translate([System.Security.Principal.NTAccount]).Value
+			}
+			catch {
+				$name = $ado.Name
+			}
+		}
+		else {
+			$name = $ado.Name
+		}
+		$translatedMembers += [PSCustomObject] @{
+			SamAccountName = $ado.SamAccountName
+			DistinguishedName = $ado.DistinguishedName
+			objectGUID = $ado.ObjectGUID
+			Name = $name
+		}
+	}
+	$result = $translatedMembers
+}
+$result`, g.Group.GUID, g.Group.GUID)}
 	}
 	result, err := RunWinRMCommand(client, cmd, true, true, execLocally)
 	if err != nil {
@@ -133,6 +195,7 @@ func (g *GroupMembership) getGroupMembers(client *winrm.Client, execLocally bool
 	if strings.TrimSpace(result.Stdout) == "" {
 		return []*GroupMember{}, nil
 	}
+	log.Printf("[DEBUG][getGroupMembers] stdout : %s", result.Stdout)
 
 	gm, err := unmarshalGroupMembership([]byte(result.Stdout))
 	if err != nil {
