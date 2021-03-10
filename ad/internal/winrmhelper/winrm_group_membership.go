@@ -269,15 +269,15 @@ func (g *GroupMembership) Update(client *winrm.Client, expected []*GroupMember, 
 	}
 
 	toAdd, toRemove := diffGroupMemberLists(expected, existing)
+	err = g.removeGroupMembers(client, toRemove, execLocally)
+	if err != nil {
+		return err
+	}
 	err = g.addGroupMembers(client, toAdd, execLocally)
 	if err != nil {
 		return err
 	}
 
-	err = g.removeGroupMembers(client, toRemove, execLocally)
-	if err != nil {
-		return err
-	}
 	log.Printf("[DEBUG] End of Update function")
 	return nil
 }
