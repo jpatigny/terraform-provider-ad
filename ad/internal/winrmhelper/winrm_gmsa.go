@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/masterzen/winrm"
@@ -24,10 +27,13 @@ type Gmsa struct {
 	DNSHostName                                string
 	DoesNotRequirePreAuth                      bool
 	Enabled                                    bool
-	Expiration                                 string `json:"AccountExpirationDate"`
+	ExpirationString                           string `json:"AccountExpirationDate"`
+	Expiration                                 string
 	GUID                                       string `json:"ObjectGUID"`
 	HomedirRequired                            bool
 	HomePage                                   string
+	KerberosEncryptionTypeNum                  []int `json:"KerberosEncryptionType"`
+	KerberosEncryptionType                     []string
 	LastLogonDate                              string
 	LockedOut                                  bool
 	logonCount                                 int
@@ -76,6 +82,10 @@ func (g *Gmsa) NewGmsa(client *winrm.Client, execLocally bool) (string, error) {
 
 	if g.HomePage != "" {
 		cmds = append(cmds, fmt.Sprintf("-HomePage %q", g.HomePage))
+	}
+
+	if len(g.KerberosEncryptionType) > 0 {
+		cmds = append(cmds, fmt.Sprintf("-KerberosEncryptionType %q", strings.Join(g.KerberosEncryptionType, ",")))
 	}
 
 	if g.ManagedPasswordIntervalInDays != 0 {
@@ -135,8 +145,6 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 		"dns_host_name":    "DNSHostName",
 		"home_page":        "HomePage",
 		"name":             "Name",
-		"principals_allowed_to_delegate_to_account":       "PrincipalsAllowedToDelegateToAccount",
-		"principals_allowed_to_retrieve_managed_password": "PrincipalsAllowedToRetrieveManagedPassword",
 	}
 
 	cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q", g.GUID)}
@@ -173,7 +181,8 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 	}
 
 	if d.HasChange("ServicePrincipalNames") {
-		cmd := fmt.Sprintf("Set-ADServiceAccount-Identity %q -ServicePrincipalNames $null ; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", strings.Join(g.ServicePrincipalNames, ","))
+		sp := "\"" + strings.Join(g.ServicePrincipalNames, "\",\"") + "\""
+		cmd := fmt.Sprintf("Set-ADServiceAccount-Identity %q -ServicePrincipalNames $null ; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", g.GUID, g.GUID, sp)
 		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
 		if err != nil {
 			return err
@@ -181,6 +190,77 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
 			return fmt.Errorf("command Set-ADServiceAccount exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+		}
+	}
+
+	if d.HasChange("principals_allowed_to_delegate_to_account") {
+		del := []string{}
+		delegate := d.Get("principals_allowed_to_delegate_to_account").(*schema.Set)
+		for _, d := range delegate.List() {
+			if d == "" {
+				continue
+			}
+			del = append(del, d.(string))
+		}
+		princ_del := "\"" + strings.Join(del, "\",\"") + "\""
+		log.Printf("[DEBUG] Principal list: %s", princ_del)
+
+		cmd := fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount $null ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount %s", g.GUID, g.GUID, princ_del)
+		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+		if err != nil {
+			return err
+		}
+		if result.ExitCode != 0 {
+			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+			return fmt.Errorf("command Set-ADServiceAccount -PrincipalsAllowedToDelegateToAccount exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+		}
+	}
+
+	if d.HasChange("principals_allowed_to_retrieve_managed_password") {
+		pass := []string{}
+		passwords := d.Get("principals_allowed_to_retrieve_managed_password").(*schema.Set)
+		for _, p := range passwords.List() {
+			if p == "" {
+				continue
+			}
+			pass = append(pass, p.(string))
+		}
+
+		princ_pass := "\"" + strings.Join(pass, "\",\"") + "\""
+		log.Printf("[DEBUG] Principal list: %s", princ_pass)
+
+		cmd := fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword $null ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword %s", g.GUID, g.GUID, princ_pass)
+		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+		if err != nil {
+			return err
+		}
+		if result.ExitCode != 0 {
+			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+			return fmt.Errorf("command Set-ADServiceAccount -PrincipalsAllowedToRetrieveManagedPassword exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+		}
+	}
+
+	if d.HasChange("kerberos_encryption_type") {
+		krb := []string{}
+		krbenc := d.Get("kerberos_encryption_type").(*schema.Set)
+		for _, k := range krbenc.List() {
+			if k == "" {
+				continue
+			}
+			krb = append(krb, k.(string))
+		}
+
+		kerb_enc := "\"" + strings.Join(krb, "\",\"") + "\""
+		log.Printf("[DEBUG] Kerberos encryption list: %s", kerb_enc)
+
+		cmd := fmt.Sprintf("Set-ADServiceAccount -Identity %q -KerberosEncryptionType %s", g.GUID, kerb_enc)
+		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+		if err != nil {
+			return err
+		}
+		if result.ExitCode != 0 {
+			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
+			return fmt.Errorf("command Set-ADServiceAccount -KerberosEncryptionType exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -227,8 +307,8 @@ func GetGmsaFromResource(d *schema.ResourceData) *Gmsa {
 		HomePage:                      SanitiseTFInput(d, "home_page"),
 		ManagedPasswordIntervalInDays: d.Get("managed_password_interval_in_days").(int),
 		Name:                          SanitiseTFInput(d, "name"),
-		SAMAccountName:                SanitiseTFInput(d, "sam_account_name"),
-		TrustedForDelegation:          d.Get("trusted_for_delegation").(bool),
+
+		TrustedForDelegation: d.Get("trusted_for_delegation").(bool),
 	}
 
 	// delegate
@@ -256,6 +336,20 @@ func GetGmsaFromResource(d *schema.ResourceData) *Gmsa {
 
 	if pass != nil {
 		gmsa.PrincipalsAllowedToRetrieveManagedPassword = pass
+	}
+
+	// kerberos encryption types
+	krb := []string{}
+	krbenc := d.Get("kerberos_encryption_type").(*schema.Set)
+	for _, k := range krbenc.List() {
+		if k == "" {
+			continue
+		}
+		krb = append(krb, strings.ToUpper(k.(string)))
+	}
+
+	if krb != nil {
+		gmsa.KerberosEncryptionType = krb
 	}
 
 	return &gmsa
@@ -293,6 +387,52 @@ func unmarshallGmsa(input []byte) (*Gmsa, error) {
 	if err != nil {
 		log.Printf("[DEBUG] Failed to unmarshall a ADGmsa json document with error %q, document was %s", err, string(input))
 		return nil, fmt.Errorf("failed while unmarshalling ADGmsa json document: %s", err)
+	}
+
+	if gmsa.ExpirationString != "" {
+		log.Printf("[DEBUG] unmarshall :: converting expiration date to proper format (current value: %s)", gmsa.ExpirationString)
+		var regdate = regexp.MustCompile(`^\/Date\((.+)\)\/$`)
+		// extract unixtime date
+		match := regdate.FindStringSubmatch(gmsa.ExpirationString)
+		log.Printf("[DEBUG] unmarshall :: unixtimestamp extracted from AccountExpirationDate attribute: %q", match[1])
+		// convert string date to int64
+		log.Printf("[DEBUG] unmarshall :: converting unixtimestamp to %s int64", match[1])
+		n, err := strconv.ParseInt(match[1], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed while unmarshalling ADGmsa json document: %s", err)
+		}
+		// convert unix_timestamp to RFC3339
+		log.Printf("[DEBUG] unmarshall :: converting unixtimestamp int64 to RFC3339")
+		t := time.Unix(0, n*int64(time.Millisecond))
+		tst := t.Format("2006-01-02T15:04:05Z")
+		log.Printf("[DEBUG] unmarshall :: converted unixtimestamp to RFC3339 : %s", tst)
+		gmsa.Expiration = tst
+	}
+
+	if gmsa.KerberosEncryptionTypeNum != nil {
+		log.Printf("[DEBUG] Converting Keberos encryption type number to string slice")
+		for _, k := range gmsa.KerberosEncryptionTypeNum {
+			log.Printf("[DEBUG] Keberos encryption type number : %d", k)
+			var krblist []string
+			switch k {
+			case 4:
+				krblist = []string{"RC4"}
+			case 8:
+				krblist = []string{"AES128"}
+			case 12:
+				krblist = []string{"RC4", "AES128"}
+			case 16:
+				krblist = []string{"AES256"}
+			case 20:
+				krblist = []string{"RC4", "AES256"}
+			case 24:
+				krblist = []string{"AES128", "AES256"}
+			case 28:
+				krblist = []string{"RC4", "AES128", "AES256"}
+			}
+			log.Printf("[DEBUG] Keberos slice list : %q", krblist)
+			gmsa.KerberosEncryptionType = krblist
+		}
 	}
 	return &gmsa, nil
 }

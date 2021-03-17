@@ -37,11 +37,6 @@ func resourceADGmsa() *schema.Resource {
 				Optional:    true,
 				Description: "The Display Name of an Active Directory Gmsa.",
 			},
-			"principal_name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The Principal Name of an Active Directory gmsa.",
-			},
 			"delegated": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -75,6 +70,15 @@ func resourceADGmsa() *schema.Resource {
 				Optional:    true,
 				Description: "Specifies the URL of the home page of the object. This parameter sets the homePage property of a Gmsa object.",
 			},
+			"kerberos_encryption_type": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "This value sets the encryption types supported flags of the Active Directory.",
+				Elem: &schema.Schema{
+					Type:         schema.TypeString,
+					ValidateFunc: validation.StringInSlice([]string{"rc4", "aes128", "aes256"}, false),
+				},
+			},
 			"managed_password_interval_in_days": {
 				Type:        schema.TypeInt,
 				Optional:    true,
@@ -89,7 +93,7 @@ func resourceADGmsa() *schema.Resource {
 			"principals_allowed_to_delegate_to_account": {
 				Type:        schema.TypeSet,
 				Optional:    true,
-				Description: "This value sets the encryption types supported flags of the Active Directory.",
+				Description: "This value sets principals allowed to delegate.",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -97,7 +101,7 @@ func resourceADGmsa() *schema.Resource {
 			"principals_allowed_to_retrieve_managed_password": {
 				Type:        schema.TypeSet,
 				Optional:    true,
-				Description: "This value sets the encryption types supported flags of the Active Directory.",
+				Description: "This value sets principals allowed to retrieve gmsa password.",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
@@ -164,20 +168,20 @@ func resourceADGmsaRead(d *schema.ResourceData, meta interface{}) error {
 	}
 	_ = d.Set("container", g.Container)
 	_ = d.Set("display_name", g.DisplayName)
-	_ = d.Set("principal_name", u.PrincipalName)
 	_ = d.Set("delegated", g.Delegated)
 	_ = d.Set("description", g.Description)
 	_ = d.Set("dns_host_name", g.DNSHostName)
 	_ = d.Set("enabled", g.Enabled)
 	_ = d.Set("expiration", g.Expiration)
 	_ = d.Set("home_page", g.HomePage)
+	_ = d.Set("KerberosEncryptionType", g.KerberosEncryptionType)
 	_ = d.Set("managed_password_interval_in_days", g.ManagedPasswordIntervalInDays)
 	_ = d.Set("name", g.Name)
 	_ = d.Set("principals_allowed_to_delegate_to_account", g.PrincipalsAllowedToDelegateToAccount)
 	_ = d.Set("principals_allowed_to_retrieve_managed_password", g.PrincipalsAllowedToRetrieveManagedPassword)
 	_ = d.Set("sam_account_name", g.SAMAccountName)
 	_ = d.Set("trusted_for_delegation", g.TrustedForDelegation)
-	_ = d.Set("sid", u.SID.Value)
+	_ = d.Set("sid", g.SID.Value)
 
 	return nil
 }
