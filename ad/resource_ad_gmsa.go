@@ -111,6 +111,14 @@ func resourceADGmsa() *schema.Resource {
 				Optional:    true,
 				Description: "The pre-win2k Gmsa logon name.",
 			},
+			"service_principal_names": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "This value sets SPN's for the gmsa.",
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 			"trusted_for_delegation": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -180,6 +188,7 @@ func resourceADGmsaRead(d *schema.ResourceData, meta interface{}) error {
 	_ = d.Set("principals_allowed_to_delegate_to_account", g.PrincipalsAllowedToDelegateToAccount)
 	_ = d.Set("principals_allowed_to_retrieve_managed_password", g.PrincipalsAllowedToRetrieveManagedPassword)
 	_ = d.Set("sam_account_name", g.SAMAccountName)
+	_ = d.Set("service_principal_names", g.ServicePrincipalNames)
 	_ = d.Set("trusted_for_delegation", g.TrustedForDelegation)
 	_ = d.Set("sid", g.SID.Value)
 
