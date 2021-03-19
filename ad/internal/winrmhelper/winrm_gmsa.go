@@ -151,8 +151,13 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 
 	for k, param := range strKeyMap {
 		if d.HasChange(k) {
-			value := d.Get(k).(string)
-			cmds = append(cmds, fmt.Sprintf("-%s %q", param, value))
+			value := SanitiseTFInput(d, k)
+			if value == "" {
+				value = "$null"
+			} else {
+				value = fmt.Sprintf(`"%s"`, value)
+			}
+			cmds = append(cmds, fmt.Sprintf(`-%s %s`, param, value))
 		}
 	}
 
@@ -180,16 +185,29 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 		}
 	}
 
-	if d.HasChange("ServicePrincipalNames") {
-		sp := "\"" + strings.Join(g.ServicePrincipalNames, "\",\"") + "\""
-		cmd := fmt.Sprintf("Set-ADServiceAccount-Identity %q -ServicePrincipalNames $null ; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", g.GUID, g.GUID, sp)
-		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+	if d.HasChange("service_principal_names") {
+		sp := []string{}
+		sprinc := d.Get("service_principal_names").(*schema.Set)
+		for _, s := range sprinc.List() {
+			if s == "" {
+				continue
+			}
+			sp = append(sp, s.(string))
+		}
+		cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q -ServicePrincipalNames $null", g.GUID)}
+		if len(sp) > 0 {
+			spnlist := strings.Join(sp, ",")
+			log.Printf("[DEBUG] SPN list: %s", spnlist)
+			cmds = append(cmds, fmt.Sprintf("; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%q}", g.GUID, spnlist))
+		}
+
+		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
 			return err
 		}
 		if result.ExitCode != 0 {
 			log.Printf("[DEBUG] stderr: %s\nstdout: %s", result.StdErr, result.Stdout)
-			return fmt.Errorf("command Set-ADServiceAccount exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
+			return fmt.Errorf("command Set-ADServiceAccount -ServicePrincipalNames exited with a non-zero exit code %d, stderr: %s", result.ExitCode, result.StdErr)
 		}
 	}
 
@@ -202,11 +220,14 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 			}
 			del = append(del, d.(string))
 		}
-		princ_del := "\"" + strings.Join(del, "\",\"") + "\""
-		log.Printf("[DEBUG] Principal list: %s", princ_del)
 
-		cmd := fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount $null ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount %s", g.GUID, g.GUID, princ_del)
-		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+		cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount $null", g.GUID)}
+		if len(del) > 0 {
+			princ_del := "\"" + strings.Join(del, "\",\"") + "\""
+			log.Printf("[DEBUG] Principal list: %s", princ_del)
+			cmds = append(cmds, fmt.Sprintf(" ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToDelegateToAccount %s", g.GUID, princ_del))
+		}
+		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
 			return err
 		}
@@ -225,12 +246,13 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 			}
 			pass = append(pass, p.(string))
 		}
-
-		princ_pass := "\"" + strings.Join(pass, "\",\"") + "\""
-		log.Printf("[DEBUG] Principal list: %s", princ_pass)
-
-		cmd := fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword $null ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword %s", g.GUID, g.GUID, princ_pass)
-		result, err := RunWinRMCommand(client, []string{cmd}, false, false, execLocally)
+		cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword $null", g.GUID)}
+		if len(pass) > 0 {
+			princ_pass := "\"" + strings.Join(pass, "\",\"") + "\""
+			log.Printf("[DEBUG] Principal list: %s", princ_pass)
+			cmds = append(cmds, fmt.Sprintf(" ; Set-ADServiceAccount -Identity %q -PrincipalsAllowedToRetrieveManagedPassword %s", g.GUID, princ_pass))
+		}
+		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
 		if err != nil {
 			return err
 		}
