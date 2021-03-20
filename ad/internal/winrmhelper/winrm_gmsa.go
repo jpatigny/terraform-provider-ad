@@ -411,6 +411,9 @@ func unmarshallGmsa(input []byte) (*Gmsa, error) {
 		return nil, fmt.Errorf("failed while unmarshalling ADGmsa json document: %s", err)
 	}
 
+	commaIdx := strings.Index(gmsa.DistinguishedName, ",")
+	gmsa.Container = gmsa.DistinguishedName[commaIdx+1:]
+
 	if gmsa.ExpirationString != "" {
 		log.Printf("[DEBUG] unmarshall :: converting expiration date to proper format (current value: %s)", gmsa.ExpirationString)
 		var regdate = regexp.MustCompile(`^\/Date\((.+)\)\/$`)
@@ -456,5 +459,6 @@ func unmarshallGmsa(input []byte) (*Gmsa, error) {
 			gmsa.KerberosEncryptionType = krblist
 		}
 	}
+
 	return &gmsa, nil
 }
