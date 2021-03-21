@@ -429,7 +429,7 @@ func unmarshallGmsa(input []byte) (*Gmsa, error) {
 		// convert unix_timestamp to RFC3339
 		log.Printf("[DEBUG] unmarshall :: converting unixtimestamp int64 to RFC3339")
 		t := time.Unix(0, n*int64(time.Millisecond))
-		tst := t.Format("2006-01-02T15:04:05Z")
+		tst := t.Format(time.RFC3339)
 		log.Printf("[DEBUG] unmarshall :: converted unixtimestamp to RFC3339 : %s", tst)
 		gmsa.Expiration = tst
 	}
