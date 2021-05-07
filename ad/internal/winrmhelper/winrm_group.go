@@ -62,7 +62,7 @@ func (g *Group) ModifyGroup(d *schema.ResourceData, client *winrm.Client, execLo
 		"category":         "GroupCategory",
 	}
 
-	cmds := []string{fmt.Sprintf("Set-Group -Identity %q", g.GUID)}
+	cmds := []string{fmt.Sprintf("Set-ADGroup -Identity %q", g.GUID)}
 	for k, param := range keyMap {
 		if d.HasChange(k) {
 			value := d.Get(k).(string)
@@ -124,6 +124,7 @@ func (g *Group) DeleteGroup(client *winrm.Client, execLocally bool) error {
 // GetGroupFromResource returns a Group struct built from Resource data
 func GetGroupFromResource(d *schema.ResourceData) *Group {
 	g := Group{
+		GUID:           SanitiseTFInput(d, "guid"),
 		Name:           SanitiseTFInput(d, "name"),
 		SAMAccountName: SanitiseTFInput(d, "sam_account_name"),
 		Container:      SanitiseTFInput(d, "container"),
