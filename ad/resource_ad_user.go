@@ -224,6 +224,11 @@ func resourceADUser() *schema.Resource {
 				ValidateFunc:     validation.StringIsJSON,
 				DiffSuppressFunc: suppressJsonDiff,
 			},
+			"guid": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The GUID of the user object.",
+			},
 			"sid": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -328,6 +333,7 @@ func resourceADUserRead(d *schema.ResourceData, meta interface{}) error {
 	_ = d.Set("employee_number", u.EmployeeNumber)
 	_ = d.Set("fax", u.Fax)
 	_ = d.Set("given_name", u.GivenName)
+	_ = d.Set("guid", u.GUID)
 	_ = d.Set("home_directory", u.HomeDirectory)
 	_ = d.Set("home_drive", u.HomeDrive)
 	_ = d.Set("home_phone", u.HomePhone)

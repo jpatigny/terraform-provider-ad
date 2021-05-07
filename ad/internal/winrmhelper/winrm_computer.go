@@ -22,13 +22,14 @@ type Computer struct {
 
 // NewComputerFromResource returns a new Machine struct populated from resource data
 func NewComputerFromResource(d *schema.ResourceData) *Computer {
-	return &Computer{
+	cmp := Computer{
 		Name:           SanitiseTFInput(d, "name"),
 		DN:             SanitiseTFInput(d, "dn"),
 		GUID:           SanitiseTFInput(d, "guid"),
 		SAMAccountName: SanitiseTFInput(d, "pre2kname"),
 		Path:           SanitiseTFInput(d, "container"),
 	}
+	return &cmp
 }
 
 // NewComputerFromHost return a new Machine struct populated from data we get

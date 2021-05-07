@@ -325,7 +325,7 @@ func GetGmsaFromResource(d *schema.ResourceData) *Gmsa {
 		DNSHostName:                   SanitiseTFInput(d, "dns_host_name"),
 		Enabled:                       d.Get("enabled").(bool),
 		Expiration:                    SanitiseTFInput(d, "expiration"),
-		GUID:                          d.Id(),
+		GUID:                          SanitiseTFInput(d, "guid"),
 		HomePage:                      SanitiseTFInput(d, "home_page"),
 		ManagedPasswordIntervalInDays: d.Get("managed_password_interval_in_days").(int),
 		Name:                          SanitiseTFInput(d, "name"),

@@ -51,6 +51,11 @@ func resourceADGroup() *schema.Resource {
 				Description:      "A DN of a container object holding the group.",
 				DiffSuppressFunc: suppressCaseDiff,
 			},
+			"guid": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The group's GUID.",
+			},
 			"sid": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -103,6 +108,7 @@ func resourceADGroupRead(d *schema.ResourceData, meta interface{}) error {
 	_ = d.Set("scope", g.Scope)
 	_ = d.Set("category", g.Category)
 	_ = d.Set("container", g.Container)
+	_ = d.Set("guid", g.GUID)
 	_ = d.Set("sid", g.SID.Value)
 
 	return nil

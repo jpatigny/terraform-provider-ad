@@ -450,7 +450,7 @@ func (u *User) getOtherAttributes() (string, error) {
 // GetUserFromResource returns a user struct built from Resource data
 func GetUserFromResource(d *schema.ResourceData) (*User, error) {
 	user := User{
-		GUID:                   d.Id(),
+		GUID:                   SanitiseTFInput(d, "guid"),
 		SAMAccountName:         SanitiseTFInput(d, "sam_account_name"),
 		PrincipalName:          SanitiseTFInput(d, "principal_name"),
 		DisplayName:            SanitiseTFInput(d, "display_name"),
