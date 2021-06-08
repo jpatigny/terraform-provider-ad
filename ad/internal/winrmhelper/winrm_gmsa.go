@@ -192,13 +192,13 @@ func (g *Gmsa) ModifyGmsa(d *schema.ResourceData, client *winrm.Client, execLoca
 			if s == "" {
 				continue
 			}
-			sp = append(sp, s.(string))
+			sp = append(sp, fmt.Sprintf("%q", s.(string)))
 		}
 		cmds := []string{fmt.Sprintf("Set-ADServiceAccount -Identity %q -ServicePrincipalNames $null", g.GUID)}
 		if len(sp) > 0 {
 			spnlist := strings.Join(sp, ",")
 			log.Printf("[DEBUG] SPN list: %s", spnlist)
-			cmds = append(cmds, fmt.Sprintf("; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%q}", g.GUID, spnlist))
+			cmds = append(cmds, fmt.Sprintf("; Set-ADServiceAccount -Identity %q -ServicePrincipalNames @{Add=%s}", g.GUID, spnlist))
 		}
 
 		result, err := RunWinRMCommand(client, cmds, false, false, execLocally)
