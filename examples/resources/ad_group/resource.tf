@@ -7,6 +7,7 @@ variable name { default = "test group" }
 variable sam_account_name { default = "TESTGROUP" }
 variable scope { default = "global" }
 variable category { default = "security" }
+variable description_group { default = "some group description" }
 
 resource "ad_ou" "o" {
   name        = var.name
@@ -22,4 +23,5 @@ resource "ad_group" "g" {
   scope            = var.scope
   category         = var.category
   container        = ad_ou.o.dn
+  description      = var.description_group
 }
