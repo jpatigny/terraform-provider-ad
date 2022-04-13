@@ -5,7 +5,7 @@ description: |-
   Get the details of an Active Directory gmsa object.
 ---
 
-# Data Source `ad_gmsa`
+# ad_gmsa (Data Source)
 
 Get the details of an Active Directory gmsa object.
 

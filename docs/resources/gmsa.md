@@ -5,7 +5,7 @@ description: |-
   ad_gmsa manages Gmsa objects in an Active Directory tree.
 ---
 
-# Resource `ad_gmsa`
+# ad_gmsa (Resource)
 
 `ad_gmsa` manages Gmsa objects in an Active Directory tree.
 
