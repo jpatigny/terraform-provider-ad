@@ -72,7 +72,7 @@ func NewPSCommand(cmds []string, opts CreatePSCommandOpts) *PSCommand {
 	if opts.PassCredentials {
 		logStr = strings.ReplaceAll(cmd, opts.Password, "<REDACTED>")
 	}
-	log.Printf("[DEBUG] Constructing powerrshell command: %s ", logStr)
+	log.Printf("[DEBUG] Constructing powershell command: %s ", logStr)
 
 	res := PSCommand{
 		CreatePSCommandOpts: opts,
