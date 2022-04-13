@@ -117,6 +117,7 @@ func Provider() *schema.Provider {
 			"ad_gpo":      dataSourceADGPO(),
 			"ad_computer": dataSourceADComputer(),
 			"ad_ou":       dataSourceADOU(),
+			"ad_gmsa":     dataSourceADGmsa(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"ad_user":             resourceADUser(),
@@ -127,6 +128,7 @@ func Provider() *schema.Provider {
 			"ad_computer":         resourceADComputer(),
 			"ad_ou":               resourceADOU(),
 			"ad_gplink":           resourceADGPLink(),
+			"ad_gmsa":             resourceADGmsa(),
 		},
 		ConfigureFunc: initProviderConfig,
 	}

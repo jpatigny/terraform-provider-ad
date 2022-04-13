@@ -70,7 +70,11 @@ func (l *LocalPSSession) ExecutePScmd(args ...string) (stdout string, stderr str
 // SanitiseTFInput returns the value of a resource field after passing it through SanitiseString
 func SanitiseTFInput(d *schema.ResourceData, key string) string {
 	return SanitiseString(d.Get(key).(string))
+}
 
+// SanitiseTFInput returns the value of a resource field after passing it through SanitiseString (except dollar char)
+func SanitiseTFInputLight(d *schema.ResourceData, key string) string {
+	return SanitiseString(d.Get(key).(string))
 }
 
 // SanitiseString returns the value of a string after some basic sanitisation checks
@@ -92,6 +96,37 @@ func SanitiseString(key string) string {
 	)
 	out := cleanupReplacer.Replace(key)
 	log.Printf("[DEBUG] sanitising key %q to: %s", key, out)
+	return out
+}
+
+func SanitiseStringLight(key string) string {
+	cleanupReplacer := strings.NewReplacer(
+		"`", "``",
+		`"`, "`\"",
+		"\x00", "`0",
+		"\x07", "`a",
+		"\x08", "`b",
+		"\x1f", "`e",
+		"\x0c", "`f",
+		"\n", "`n",
+		"\r", "`r",
+		"\t", "`t",
+		"\v", "`v",
+	)
+	out := cleanupReplacer.Replace(key)
+	log.Printf("[DEBUG] sanitising key %q to: %s", key, out)
+	return out
+}
+
+// SanitiseDN returns the value of a string after some basic sanitisation checks to fit Distinguished Name syntax in Active Directory
+func SanitiseDN(s string) string {
+	key := strings.ToLower(s)
+	cleanupReplacer := strings.NewReplacer(
+		"cn=", "CN=",
+		`dc=`, "DC=",
+	)
+	out := cleanupReplacer.Replace(key)
+	log.Printf("[DEBUG] sanitising Distinguished Name %q to: %s", s, out)
 	return out
 }
 
