@@ -31,7 +31,7 @@ func resourceADGmsa() *schema.Resource {
 				Type:             schema.TypeString,
 				Optional:         true,
 				Description:      "A DN of the container object that will be holding the Gmsa.",
-				ValidateFunc:     validation.StringMatch(regexp.MustCompile(DistNameRegexp), "Must be a valid distinguished name (case sensitive). (Example: CN=Computer1,OU=Computers,DC=contoso,DC=com)"),
+				ValidateFunc:     validation.StringMatch(regexp.MustCompile(DistNameRegexp), "Must be a valid distinguished name (case sensitive). (Example: OU=Computers,DC=contoso,DC=com)"),
 				DiffSuppressFunc: suppressCaseDiff,
 			},
 			"display_name": {

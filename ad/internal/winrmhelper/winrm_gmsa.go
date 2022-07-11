@@ -47,7 +47,6 @@ type gMSA struct {
 	ServicePrincipalNames                      []string
 	SID                                        SID `json:"SID"`
 	TrustedForDelegation                       bool
-	UserAccountControl                         int64 `json:"userAccountControl"`
 }
 
 func ItemExistsInList(i string, memberList []string) bool {
@@ -576,11 +575,15 @@ func GetGmsaFromHost(conf *config.ProviderConf, guid string) (*gMSA, error) {
 // into a gMSA structure and populates all fields based on the data
 // extracted.
 func unmarshallGmsa(input []byte) (*gMSA, error) {
+	log.Printf("[DEBUG] Starting unmarshal gMSA...")
 	var g gMSA
 	err := json.Unmarshal(input, &g)
 	if err != nil {
 		log.Printf("[DEBUG] Failed to unmarshall a ADGmsa json document with error %q, document was %s", err, string(input))
 		return nil, fmt.Errorf("failed while unmarshalling ADGmsa json document: %s", err)
+	}
+	if g.GUID == "" {
+		return nil, fmt.Errorf("invalid data while unmarshalling Gmsa data, json doc was: %s", string(input))
 	}
 
 	commaIdx := strings.Index(g.DistinguishedName, ",")
@@ -611,31 +614,22 @@ func unmarshallGmsa(input []byte) (*gMSA, error) {
 		g.Expiration = tst
 	}
 
-	if g.KerberosEncryptionTypeNum != nil {
-		log.Printf("[DEBUG] Converting Keberos encryption type number to string slice")
-		for _, k := range g.KerberosEncryptionTypeNum {
-			log.Printf("[DEBUG] Keberos encryption type number : %d", k)
-			var krblist []string
-			switch k {
-			case 4:
-				krblist = []string{"RC4"}
-			case 8:
-				krblist = []string{"AES128"}
-			case 12:
-				krblist = []string{"RC4", "AES128"}
-			case 16:
-				krblist = []string{"AES256"}
-			case 20:
-				krblist = []string{"RC4", "AES256"}
-			case 24:
-				krblist = []string{"AES128", "AES256"}
-			case 28:
-				krblist = []string{"RC4", "AES128", "AES256"}
-			}
-			log.Printf("[DEBUG] Keberos slice list : %q", krblist)
-			g.KerberosEncryptionType = krblist
-		}
+	var krblistMap = map[int][]string{
+		4:  {"RC4"},
+		8:  {"AES128"},
+		12: {"RC4", "AES128"},
+		16: {"AES256"},
+		20: {"RC4", "AES256"},
+		24: {"AES128", "AES256"},
+		28: {"RC4", "AES128", "AES256"},
 	}
+
+	log.Printf("[DEBUG] Converting Keberos encryption type number to string slice")
+	for _, k := range g.KerberosEncryptionTypeNum {
+		g.KerberosEncryptionType = krblistMap[k]
+	}
+	log.Printf("[DEBUG] Keberos slice list : %s", g.KerberosEncryptionType)
+	log.Printf("[DEBUG] finsihed unmarshal gMSA...")
 
 	return &g, nil
 }

@@ -92,15 +92,20 @@ func dataSourceADGmsa() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"sid": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The SID of the gmsa object.",
+			},
 			"trusted_for_delegation": {
 				Type:        schema.TypeBool,
 				Computed:    true,
 				Description: "If set to true, the Gmsa account is trusted for Kerberos delegation. A service that runs under an account that is trusted for Kerberos delegation can assume the identity of a client requesting the service. This parameter sets the TrustedForDelegation property of an account object.",
 			},
-			"sid": {
+			"dn": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "The SID of the gmsa object.",
+				Description: "The distinguished name of the gmsa object.",
 			},
 		},
 	}
@@ -116,15 +121,15 @@ func dataSourceADgmsaRead(d *schema.ResourceData, meta interface{}) error {
 	if g == nil {
 		return fmt.Errorf("No gmsa found with gmsa_id %q", gmsaID)
 	}
-	_ = d.Set("container", g.Container)
 	_ = d.Set("display_name", g.DisplayName)
 	_ = d.Set("delegated", g.Delegated)
 	_ = d.Set("description", g.Description)
+	_ = d.Set("dn", g.DistinguishedName)
 	_ = d.Set("dns_host_name", g.DNSHostName)
 	_ = d.Set("enabled", g.Enabled)
 	_ = d.Set("expiration", g.Expiration)
 	_ = d.Set("home_page", g.HomePage)
-	_ = d.Set("KerberosEncryptionType", g.KerberosEncryptionType)
+	_ = d.Set("kerberos_encryption_type", g.KerberosEncryptionType)
 	_ = d.Set("managed_password_interval_in_days", g.ManagedPasswordIntervalInDays)
 	_ = d.Set("name", g.Name)
 	_ = d.Set("principals_allowed_to_delegate_to_account", g.PrincipalsAllowedToDelegateToAccount)
