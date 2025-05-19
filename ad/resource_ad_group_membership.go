@@ -22,18 +22,68 @@ func resourceADGroupMembership() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 		Schema: map[string]*schema.Schema{
-			"group_id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The ID of the group. This can be a GUID, a SID, a Distinguished Name, or the SAM Account Name of the group.",
-				ForceNew:    true,
+			"group": {
+				Type:     schema.TypeList,
+				Required: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"id": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "The identifier of the group (GUID, SID, DN, or SAM Account Name).",
+						},
+						"domain": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "The domain where the group resides.",
+						},
+						"user": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Username used for authentication (optional override).",
+						},
+						"password": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Sensitive:   true,
+							Description: "Password for the user (optional override).",
+						},
+					},
+				},
+				Description: "Block containing group identifier and optional connection overrides.",
 			},
-			"group_members": {
-				Type:        schema.TypeSet,
-				Required:    true,
-				Description: "A list of member AD Principals. Each principal can be identified by its GUID, SID, Distinguished Name, or SAM Account Name. Only one is required",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-				MinItems:    1,
+			"members": {
+				Type:     schema.TypeList,
+				Required: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"id": {
+							Type:        schema.TypeList,
+							Required:    true,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							Description: "A list of member identifiers (GUID, SID, DN, or SAM Account Name).",
+						},
+						"domain": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "The domain for the member objects.",
+						},
+						"user": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Username for member-level authentication (optional).",
+						},
+						"password": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Sensitive:   true,
+							Description: "Password for member-level authentication (optional).",
+						},
+					},
+				},
+				Description: "Block containing list of members and optional authentication overrides.",
 			},
 		},
 	}

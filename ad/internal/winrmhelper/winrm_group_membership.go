@@ -4,43 +4,57 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
+    "text/template"
 	"github.com/hashicorp/terraform-provider-ad/ad/internal/config"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-type GroupMembership struct {
-	GroupGUID    string
-	GroupMembers []*GroupMember
+type Group struct {
+	GUID     string
+	Domain   string
+	Username string
+	Password string
 }
 
 type GroupMember struct {
+	Domain   string
+	Username string
+	Password string
+}
+
+type Member struct {
 	SamAccountName string `json:"SamAccountName"`
 	DN             string `json:"DistinguishedName"`
 	GUID           string `json:"ObjectGUID"`
 	Name           string `json:"Name"`
 }
 
-func groupExistsInList(g *GroupMember, memberList []*GroupMember) bool {
+type GroupMembership struct {
+	Group          *Group
+	GroupMember    *GroupMember
+	Members        []*Member
+}
+
+func memberExistsInList(m *Member, memberList []*Member) bool {
 	for _, item := range memberList {
-		if g.GUID == item.GUID {
+		if m.GUID == item.GUID {
 			return true
 		}
 	}
 	return false
 }
 
-func diffGroupMemberLists(expectedMembers, existingMembers []*GroupMember) ([]*GroupMember, []*GroupMember) {
-	var toAdd, toRemove []*GroupMember
+func diffGroupMemberLists(expectedMembers, existingMembers []*Member) ([]*Member, []*Member) {
+	var toAdd, toRemove []*Member
 	for _, member := range expectedMembers {
-		if !groupExistsInList(member, existingMembers) {
+		if !memberExistsInList(member, existingMembers) {
 			toAdd = append(toAdd, member)
 		}
 	}
 
 	for _, member := range existingMembers {
-		if !groupExistsInList(member, expectedMembers) {
+		if !memberExistsInList(member, expectedMembers) {
 			toRemove = append(toRemove, member)
 		}
 	}
@@ -48,29 +62,31 @@ func diffGroupMemberLists(expectedMembers, existingMembers []*GroupMember) ([]*G
 	return toAdd, toRemove
 }
 
-func unmarshalGroupMembership(input []byte) ([]*GroupMember, error) {
-	var gm []*GroupMember
-	err := json.Unmarshal(input, &gm)
+func unmarshalMember(input []byte) ([]*Member, error) {
+	var m []*Member
+	err := json.Unmarshal(input, &m)
 	if err != nil {
 		return nil, err
 	}
-	if len(gm) > 0 && gm[0].GUID == "" {
-		return nil, fmt.Errorf("invalid data while unmarshalling group membership data, json doc was: %s", string(input))
+	if len(m) > 0 && m[0].GUID == "" {
+		return nil, fmt.Errorf("invalid data while unmarshalling member data, json doc was: %s", string(input))
 	}
-	return gm, nil
+	return m, nil
 }
 
-func getMembershipList(g []*GroupMember) string {
+func getMembershipList(m []*Member) string {
 	out := []string{}
-	for _, member := range g {
+	for _, member := range m {
 		out = append(out, member.GUID)
 	}
 
 	return strings.Join(out, ",")
 }
 
-func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*GroupMember, error) {
-	cmd := fmt.Sprintf("Get-ADGroupMember -Identity %q", g.GroupGUID)
+// adapt to manage domain, user and password in command options : OK
+// adapt to change output type to Member : OK
+func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*Member, error) {
+	cmd := fmt.Sprintf("Get-ADGroupMember -Identity %q", g.Group.GUID)
 	psOpts := CreatePSCommandOpts{
 		JSONOutput:      true,
 		ForceArray:      true,
@@ -80,6 +96,15 @@ func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*GroupMe
 		Password:        conf.Settings.WinRMPassword,
 		Server:          conf.IdentifyDomainController(),
 	}
+
+	if g.Group.Domain != "" {
+		psOpts.Server = g.Group.Domain
+	}
+	if g.Group.Username != "" && g.Group.Password != "" {
+		psOpts.Username = g.Group.Username
+		psOpts.Password = g.Group.Password
+	}
+
 	psCmd := NewPSCommand([]string{cmd}, psOpts)
 	result, err := psCmd.Run(conf)
 	if err != nil {
@@ -89,10 +114,10 @@ func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*GroupMe
 	}
 
 	if strings.TrimSpace(result.Stdout) == "" {
-		return []*GroupMember{}, nil
+		return []*Member{}, nil
 	}
 
-	gm, err := unmarshalGroupMembership([]byte(result.Stdout))
+	gm, err := unmarshalMember([]byte(result.Stdout))
 	if err != nil {
 		return nil, fmt.Errorf("while unmarshalling group membership response: %s", err)
 	}
@@ -100,23 +125,68 @@ func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*GroupMe
 	return gm, nil
 }
 
-func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operation string, members []*GroupMember) error {
+func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operation string, members []*Member) error {
 	if len(members) == 0 {
 		return nil
 	}
+	const psScriptTemplate = `
+{{- $hasGrpCred := and .g.Group.Username .g.Group.Password }}
+{{- $hasGrpServer := .g.Group.Domain }}
+{{- $hasMbrCred := and .g.GroupMember.Username .g.GroupMember.Password }}
+{{- $hasMbrServer := .g.GroupMember.Domain }}
+$members = @()
+$grpParams = @{
+{{- if $hasGrpServer }}
+  Server = '{{ .g.Group.Domain }}'
+{{- end }}
+{{- if $hasGrpCred }}
+  Credential = New-Object System.Management.Automation.PSCredential ("{{ .g.Group.Username }}", (ConvertTo-SecureString "{{ .g.Group.Password }}" -AsPlainText -Force))
+{{- end }}
+}
+$group = Get-ADGroup @grpParams 
+$mbrParams = @{
+{{- if $hasMbrServer }}
+  Server = '{{ .g.GroupMember.Domain }}'
+{{- end }}
+{{- if $hasMbrCred }}
+  Credential = New-Object System.Management.Automation.PSCredential ("{{ .g.GroupMember.Username }}", (ConvertTo-SecureString "{{ .g.GroupMember.Password }}" -AsPlainText -Force))
+{{- end }}
+}
+{{- range .g.Members }}
+$mbrParams['Identity'] = '{{ . }}'
+$obj = Get-ADObject @mbrParams
+switch ($obj.ObjectClass) {
+    'computer'                        { $members += Get-ADComputer @mbrParams }
+    'user'                            { $members += Get-ADUser @mbrParams }
+    'group'                           { $members += Get-ADGroup @mbrParams }
+    'msDS-GroupManagedServiceAccount' { $members += Get-ADServiceAccount @mbrParams }
+}
+{{ end }}
+`
+	tmpl, err := template.New("psScript").Parse(psScriptTemplate)
+	if err != nil {
+		panic(err)
+	}
+	var scriptBuf bytes.Buffer
+	err = tmpl.Execute(&scriptBuf, g)
+	if err != nil {
+		panic(err)
+	}
+	script := scriptBuf.String()
+	cmdop := fmt.Sprintf("%s -Identity $group -Members $members -Confirm:$false", operation)
+	cmd := []string{script, cmdop}
 
-	memberList := getMembershipList(members)
-	cmd := fmt.Sprintf("%s -Identity %q %s -Confirm:$false", operation, g.GroupGUID, memberList)
 	psOpts := CreatePSCommandOpts{
 		JSONOutput:      false,
 		ForceArray:      false,
 		ExecLocally:     conf.IsConnectionTypeLocal(),
-		PassCredentials: conf.IsPassCredentialsEnabled(),
-		Username:        conf.Settings.WinRMUsername,
-		Password:        conf.Settings.WinRMPassword,
-		Server:          conf.IdentifyDomainController(),
+		PassCredentials: false,
+		Username:        "",
+		Password:        "",
+		Server:          "",
 	}
-	psCmd := NewPSCommand([]string{cmd}, psOpts)
+
+	psCmd := NewPSCommand(cmd, psOpts)
 	result, err := psCmd.Run(conf)
 
 	if err != nil {
@@ -128,15 +198,15 @@ func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operatio
 	return nil
 }
 
-func (g *GroupMembership) addGroupMembers(conf *config.ProviderConf, members []*GroupMember) error {
+func (g *GroupMembership) addGroupMembers(conf *config.ProviderConf, members []*Member) error {
 	return g.bulkGroupMembersOp(conf, "Add-ADGroupMember", members)
 }
 
-func (g *GroupMembership) removeGroupMembers(conf *config.ProviderConf, members []*GroupMember) error {
+func (g *GroupMembership) removeGroupMembers(conf *config.ProviderConf, members []*Member) error {
 	return g.bulkGroupMembersOp(conf, "Remove-ADGroupMember", members)
 }
 
-func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*GroupMember) error {
+func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*Member) error {
 	existing, err := g.getGroupMembers(conf)
 	if err != nil {
 		return err
@@ -194,7 +264,7 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 		Server:          conf.IdentifyDomainController(),
 		SkipCredPrefix:  true,
 	}
-	subcmd := NewPSCommand([]string{fmt.Sprintf("Get-AdGroupMember %q", g.GroupGUID)}, subCmdOpt)
+	subcmd := NewPSCommand([]string{fmt.Sprintf("Get-ADGroupMember %q", g.GroupGUID)}, subCmdOpt)
 	cmd := fmt.Sprintf("Remove-ADGroupMember %q -Members (%s) -Confirm:$false", g.GroupGUID, subcmd.String())
 
 	psOpts := CreatePSCommandOpts{
@@ -231,22 +301,66 @@ func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*Gro
 }
 
 func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, error) {
-	groupID := d.Get("group_id").(string)
-	members := d.Get("group_members").(*schema.Set)
+	group := d.Get("group").(*schema.Set)
+	members := d.Get("members").(*schema.Set)
+
 	result := &GroupMembership{
-		GroupGUID:    groupID,
-		GroupMembers: []*GroupMember{},
+		Group:    &Group{},
+		GroupMember: &GroupMember{},
+		Members: []*Members{},
+	}
+
+	for _, g := range group.List() {
+		if g == "" {
+			continue
+		}
+		id := g.(map[string]interface{})["id"]
+		srv := g.(map[string]interface{})["domain"]
+		user := g.(map[string]interface{})["user"]
+		pass := g.(map[string]interface{})["password"] 
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group ID: %s", id)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", srv)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group User: %s", user)
+		newGroup := &Group{
+			GUID:   id.(string),
+			Domain: srv.(string),
+			Username: user.(string),
+			Password: pass.(string),
+		}
+
+		result.Group = newGroup
 	}
 
 	for _, m := range members.List() {
 		if m == "" {
 			continue
 		}
-		newMember := &GroupMember{
-			GUID: m.(string),
-		}
 
-		result.GroupMembers = append(result.GroupMembers, newMember)
+		mbrGUID := m.(map[string]interface{})["id"]
+		srv := m.(map[string]interface{})["domain"]
+		user := m.(map[string]interface{})["user"]
+		pass := m.(map[string]interface{})["password"] 
+
+		newGroupMember := &GroupMember {
+			Domain: srv.(string),
+			Username: user.(string),
+			Password: pass.(string),
+		}
+		result.GroupMember = newGroupMember
+
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", mbrGUID)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member Domain: %s", srv)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member User: %s", user)
+		for _, m := range mbrGUID.([]interface{}) {
+			newMember := &GroupMember{
+				GUID:  m.(string),
+			}
+			result.Members = append(result.Members, newMember)
+		}
 	}
+	resJSON, _ := json.Marshal(result)
+
+	log.Printf("[DEBUG][NewGroupMembershipFromState] result : %s", resJSON)
+	
 	return result, nil
 }
