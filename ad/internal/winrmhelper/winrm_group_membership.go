@@ -234,58 +234,24 @@ func (g *GroupMembership) Create(conf *config.ProviderConf) error {
 		return nil
 	}
 
-	memberList := getMembershipList(g.Members)
-	cmds := []string{fmt.Sprintf("Add-ADGroupMember -Identity %q -Members %s", g.Group.GUID, memberList)}
-	psOpts := CreatePSCommandOpts{
-		JSONOutput:      false,
-		ForceArray:      false,
-		ExecLocally:     conf.IsConnectionTypeLocal(),
-		PassCredentials: conf.IsPassCredentialsEnabled(),
-		Username:        conf.Settings.WinRMUsername,
-		Password:        conf.Settings.WinRMPassword,
-		Server:          conf.IdentifyDomainController(),
-	}
-	psCmd := NewPSCommand(cmds, psOpts)
-	result, err := psCmd.Run(conf)
+	err := g.addGroupMembers(conf, g.Members)
 	if err != nil {
-		return fmt.Errorf("while running Add-ADGroupMember: %s", err)
-	} else if result.ExitCode != 0 {
-		return fmt.Errorf("command Add-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+		return err
 	}
 
 	return nil
 }
 
 func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
-	subCmdOpt := CreatePSCommandOpts{
-		JSONOutput:      false,
-		ForceArray:      false,
-		ExecLocally:     conf.IsConnectionTypeLocal(),
-		PassCredentials: conf.IsPassCredentialsEnabled(),
-		Username:        conf.Settings.WinRMUsername,
-		Password:        conf.Settings.WinRMPassword,
-		Server:          conf.IdentifyDomainController(),
-		SkipCredPrefix:  true,
+	if len(g.Members) == 0 {
+		return nil
 	}
-	subcmd := NewPSCommand([]string{fmt.Sprintf("Get-ADGroupMember %q", g.Group.GUID)}, subCmdOpt)
-	cmd := fmt.Sprintf("Remove-ADGroupMember %q -Members (%s) -Confirm:$false", g.Group.GUID, subcmd.String())
 
-	psOpts := CreatePSCommandOpts{
-		JSONOutput:      false,
-		ForceArray:      false,
-		ExecLocally:     conf.IsConnectionTypeLocal(),
-		PassCredentials: conf.IsPassCredentialsEnabled(),
-		Username:        conf.Settings.WinRMUsername,
-		Password:        conf.Settings.WinRMPassword,
-		Server:          conf.IdentifyDomainController(),
-	}
-	psCmd := NewPSCommand([]string{cmd}, psOpts)
-	result, err := psCmd.Run(conf)
+	err := g.removeGroupMembers(conf, g.Members)
 	if err != nil {
-		return fmt.Errorf("while running Remove-ADGroupMember: %s", err)
-	} else if result.ExitCode != 0 && !strings.Contains(result.StdErr, "InvalidData") {
-		return fmt.Errorf("command Remove-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
+		return err
 	}
+
 	return nil
 }
 
