@@ -96,13 +96,13 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	if err != nil {
 		return err
 	}
-	memberList := make([]string, len(gm.GroupMembers))
+	memberList := make([]string, len(gm.Members))
 
-	for idx, m := range gm.GroupMembers {
+	for idx, m := range gm.Members {
 		memberList[idx] = m.GUID
 	}
-	_ = d.Set("group_members", memberList)
-	_ = d.Set("group_id", toks[0])
+	_ = d.Set("members", memberList)
+	_ = d.Set("group", toks[0])
 	return nil
 }
 
@@ -122,7 +122,7 @@ func resourceADGroupMembershipCreate(d *schema.ResourceData, meta interface{}) e
 		return fmt.Errorf("while generating UUID to use as unique membership ID: %s", err)
 	}
 
-	id := fmt.Sprintf("%s_%s", gm.GroupGUID, membershipUUID)
+	id := fmt.Sprintf("%s_%s", gm.Group.GUID, membershipUUID)
 	d.SetId(id)
 
 	return nil
@@ -134,7 +134,7 @@ func resourceADGroupMembershipUpdate(d *schema.ResourceData, meta interface{}) e
 		return err
 	}
 
-	err = gm.Update(meta.(*config.ProviderConf), gm.GroupMembers)
+	err = gm.Update(meta.(*config.ProviderConf), gm.Members)
 	if err != nil {
 		return err
 	}
