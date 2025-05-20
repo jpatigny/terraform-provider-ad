@@ -1,16 +1,19 @@
 package winrmhelper
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
-    "text/template"
+	"text/template"
+
 	"github.com/hashicorp/terraform-provider-ad/ad/internal/config"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-type Group struct {
+type Grp struct {
 	GUID     string
 	Domain   string
 	Username string
@@ -31,9 +34,9 @@ type Member struct {
 }
 
 type GroupMembership struct {
-	Group          *Group
-	GroupMember    *GroupMember
-	Members        []*Member
+	Group       *Grp
+	GroupMember *GroupMember
+	Members     []*Member
 }
 
 func memberExistsInList(m *Member, memberList []*Member) bool {
@@ -227,12 +230,12 @@ func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*Member) 
 }
 
 func (g *GroupMembership) Create(conf *config.ProviderConf) error {
-	if len(g.GroupMembers) == 0 {
+	if len(g.Members) == 0 {
 		return nil
 	}
 
-	memberList := getMembershipList(g.GroupMembers)
-	cmds := []string{fmt.Sprintf("Add-ADGroupMember -Identity %q -Members %s", g.GroupGUID, memberList)}
+	memberList := getMembershipList(g.Members)
+	cmds := []string{fmt.Sprintf("Add-ADGroupMember -Identity %q -Members %s", g.Group.GUID, memberList)}
 	psOpts := CreatePSCommandOpts{
 		JSONOutput:      false,
 		ForceArray:      false,
@@ -305,9 +308,9 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 	members := d.Get("members").(*schema.Set)
 
 	result := &GroupMembership{
-		Group:    &Group{},
+		Group:       &Group{},
 		GroupMember: &GroupMember{},
-		Members: []*Members{},
+		Members:     []*Members{},
 	}
 
 	for _, g := range group.List() {
@@ -317,13 +320,13 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		id := g.(map[string]interface{})["id"]
 		srv := g.(map[string]interface{})["domain"]
 		user := g.(map[string]interface{})["user"]
-		pass := g.(map[string]interface{})["password"] 
+		pass := g.(map[string]interface{})["password"]
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group ID: %s", id)
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", srv)
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group User: %s", user)
 		newGroup := &Group{
-			GUID:   id.(string),
-			Domain: srv.(string),
+			GUID:     id.(string),
+			Domain:   srv.(string),
 			Username: user.(string),
 			Password: pass.(string),
 		}
@@ -339,10 +342,10 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		mbrGUID := m.(map[string]interface{})["id"]
 		srv := m.(map[string]interface{})["domain"]
 		user := m.(map[string]interface{})["user"]
-		pass := m.(map[string]interface{})["password"] 
+		pass := m.(map[string]interface{})["password"]
 
-		newGroupMember := &GroupMember {
-			Domain: srv.(string),
+		newGroupMember := &GroupMember{
+			Domain:   srv.(string),
 			Username: user.(string),
 			Password: pass.(string),
 		}
@@ -353,7 +356,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Member User: %s", user)
 		for _, m := range mbrGUID.([]interface{}) {
 			newMember := &GroupMember{
-				GUID:  m.(string),
+				GUID: m.(string),
 			}
 			result.Members = append(result.Members, newMember)
 		}
@@ -361,6 +364,6 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 	resJSON, _ := json.Marshal(result)
 
 	log.Printf("[DEBUG][NewGroupMembershipFromState] result : %s", resJSON)
-	
+
 	return result, nil
 }

@@ -99,8 +99,8 @@ func testAccResourceADGroupMembershipExists(resourceName string, expected bool, 
 			return err
 		}
 
-		if len(gm.GroupMembers) != desiredMemberCount {
-			return fmt.Errorf("group member actual count (%d) does not match the expected number of members (%d)", len(gm.GroupMembers), desiredMemberCount)
+		if len(gm.Members) != desiredMemberCount {
+			return fmt.Errorf("group member actual count (%d) does not match the expected number of members (%d)", len(gm.Members), desiredMemberCount)
 		}
 		return nil
 	}
@@ -144,8 +144,12 @@ func testAccResourceADGroupMembershipConfigBasic() string {
 		}
 
 		resource ad_group_membership "gm" {
-			group_id = ad_group.g.id
-			group_members  = [ ad_group.g2.id,ad_user.u.id]
+			group = {
+			  id = [ad_group.g.id ]
+			}
+			members = {
+			  id = [ad_group.g2.id,ad_user.u.id]
+			} 
 		}
 	`
 }
@@ -198,8 +202,12 @@ func testAccResourceADGroupMembershipUpdate() string {
 		}
 
 		resource ad_group_membership "gm" {
-			group_id = ad_group.g.id
-			group_members  = [ ad_group.g2.id,ad_user.u.id,ad_group.g3.id]
+			group = {
+			  id = [ad_group.g.id ]
+			}
+			members = {
+			  id = [ad_group.g2.id,ad_user.u.id,ad_group.g3.id]
+			} 
 		}
 `
 }
