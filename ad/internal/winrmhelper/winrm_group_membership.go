@@ -267,8 +267,8 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 		Server:          conf.IdentifyDomainController(),
 		SkipCredPrefix:  true,
 	}
-	subcmd := NewPSCommand([]string{fmt.Sprintf("Get-ADGroupMember %q", g.GroupGUID)}, subCmdOpt)
-	cmd := fmt.Sprintf("Remove-ADGroupMember %q -Members (%s) -Confirm:$false", g.GroupGUID, subcmd.String())
+	subcmd := NewPSCommand([]string{fmt.Sprintf("Get-ADGroupMember %q", g.Group.GUID)}, subCmdOpt)
+	cmd := fmt.Sprintf("Remove-ADGroupMember %q -Members (%s) -Confirm:$false", g.Group.GUID, subcmd.String())
 
 	psOpts := CreatePSCommandOpts{
 		JSONOutput:      false,
@@ -291,14 +291,16 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 
 func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*GroupMembership, error) {
 	result := &GroupMembership{
-		GroupGUID: groupID,
+		Group: &Grp{
+			GUID: groupID,
+		},
 	}
 
 	gm, err := result.getGroupMembers(conf)
 	if err != nil {
 		return nil, err
 	}
-	result.GroupMembers = gm
+	result.Members = gm
 
 	return result, nil
 }
@@ -308,9 +310,9 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 	members := d.Get("members").(*schema.Set)
 
 	result := &GroupMembership{
-		Group:       &Group{},
+		Group:       &Grp{},
 		GroupMember: &GroupMember{},
-		Members:     []*Members{},
+		Members:     []*Member{},
 	}
 
 	for _, g := range group.List() {
@@ -324,7 +326,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group ID: %s", id)
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", srv)
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group User: %s", user)
-		newGroup := &Group{
+		newGroup := &Grp{
 			GUID:     id.(string),
 			Domain:   srv.(string),
 			Username: user.(string),
@@ -355,7 +357,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Member Domain: %s", srv)
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Member User: %s", user)
 		for _, m := range mbrGUID.([]interface{}) {
-			newMember := &GroupMember{
+			newMember := &Member{
 				GUID: m.(string),
 			}
 			result.Members = append(result.Members, newMember)
