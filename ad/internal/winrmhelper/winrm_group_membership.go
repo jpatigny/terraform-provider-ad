@@ -125,6 +125,7 @@ func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operatio
 {{- $hasMbrServer := .GroupMember.Domain }}
 $members = @()
 $grpParams = @{
+  Identity = '{{ .Group.GUID }}'
 {{- if $hasGrpServer }}
   Server = '{{ .Group.Domain }}'
 {{- end }}
