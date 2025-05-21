@@ -133,30 +133,30 @@ func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operatio
 		return nil
 	}
 	const psScriptTemplate = `
-{{- $hasGrpCred := and .g.Group.Username .g.Group.Password }}
-{{- $hasGrpServer := .g.Group.Domain }}
-{{- $hasMbrCred := and .g.GroupMember.Username .g.GroupMember.Password }}
-{{- $hasMbrServer := .g.GroupMember.Domain }}
+{{- $hasGrpCred := and .Group.Username .Group.Password }}
+{{- $hasGrpServer := .Group.Domain }}
+{{- $hasMbrCred := and .GroupMember.Username .GroupMember.Password }}
+{{- $hasMbrServer := .GroupMember.Domain }}
 $members = @()
 $grpParams = @{
 {{- if $hasGrpServer }}
-  Server = '{{ .g.Group.Domain }}'
+  Server = '{{ .Group.Domain }}'
 {{- end }}
 {{- if $hasGrpCred }}
-  Credential = New-Object System.Management.Automation.PSCredential ("{{ .g.Group.Username }}", (ConvertTo-SecureString "{{ .g.Group.Password }}" -AsPlainText -Force))
+  Credential = New-Object System.Management.Automation.PSCredential ("{{ .Group.Username }}", (ConvertTo-SecureString "{{ .Group.Password }}" -AsPlainText -Force))
 {{- end }}
 }
 $group = Get-ADGroup @grpParams 
 $mbrParams = @{
 {{- if $hasMbrServer }}
-  Server = '{{ .g.GroupMember.Domain }}'
+  Server = '{{ .GroupMember.Domain }}'
 {{- end }}
 {{- if $hasMbrCred }}
-  Credential = New-Object System.Management.Automation.PSCredential ("{{ .g.GroupMember.Username }}", (ConvertTo-SecureString "{{ .g.GroupMember.Password }}" -AsPlainText -Force))
+  Credential = New-Object System.Management.Automation.PSCredential ("{{ .GroupMember.Username }}", (ConvertTo-SecureString "{{ .GroupMember.Password }}" -AsPlainText -Force))
 {{- end }}
 }
-{{- range .g.Members }}
-$mbrParams['Identity'] = '{{ . }}'
+{{- range .Members }}
+$mbrParams['Identity'] = '{{ .SamAccountName }}'
 $obj = Get-ADObject @mbrParams
 switch ($obj.ObjectClass) {
     'computer'                        { $members += Get-ADComputer @mbrParams }
@@ -164,20 +164,24 @@ switch ($obj.ObjectClass) {
     'group'                           { $members += Get-ADGroup @mbrParams }
     'msDS-GroupManagedServiceAccount' { $members += Get-ADServiceAccount @mbrParams }
 }
-{{ end }}
+{{- end }}
 `
 	tmpl, err := template.New("psScript").Parse(psScriptTemplate)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("template parse error: %w", err)
 	}
 	var scriptBuf bytes.Buffer
 	err = tmpl.Execute(&scriptBuf, g)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("template execution error: %w", err)
 	}
-	script := scriptBuf.String()
+
+	// Add the operation command
 	cmdop := fmt.Sprintf("%s -Identity $group -Members $members -Confirm:$false", operation)
-	cmd := []string{script, cmdop}
+	script := scriptBuf.String() + "\n" + cmdop
+
+	// Create the PowerShell command object
+	cmd := []string{script}
 
 	psOpts := CreatePSCommandOpts{
 		JSONOutput:      false,
@@ -188,7 +192,6 @@ switch ($obj.ObjectClass) {
 		Password:        "",
 		Server:          "",
 	}
-
 	psCmd := NewPSCommand(cmd, psOpts)
 	result, err := psCmd.Run(conf)
 
