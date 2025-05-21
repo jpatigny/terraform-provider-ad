@@ -23,7 +23,7 @@ func resourceADGroupMembership() *schema.Resource {
 		},
 		Schema: map[string]*schema.Schema{
 			"group": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Required: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
@@ -54,7 +54,7 @@ func resourceADGroupMembership() *schema.Resource {
 				Description: "Block containing group identifier and optional connection overrides.",
 			},
 			"members": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Required: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{

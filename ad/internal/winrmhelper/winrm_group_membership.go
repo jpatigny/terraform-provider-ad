@@ -275,8 +275,8 @@ func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*Gro
 }
 
 func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, error) {
-	group := d.Get("group").(*schema.Set)
-	members := d.Get("members").(*schema.Set)
+	groupSet := d.Get("group").(*schema.Set)
+	membersSet := d.Get("members").(*schema.Set)
 
 	result := &GroupMembership{
 		Group:       &Grp{},
@@ -284,57 +284,71 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		Members:     []*Member{},
 	}
 
-	for _, g := range group.List() {
-		if g == "" {
-			continue
+	for _, g := range groupSet.List() {
+		groupMap := g.(map[string]interface{})
+		id := groupMap["id"].(string)
+
+		var domain, username, password string
+		if v, ok := groupMap["domain"].(string); ok {
+			domain = v
 		}
-		id := g.(map[string]interface{})["id"]
-		srv := g.(map[string]interface{})["domain"]
-		user := g.(map[string]interface{})["user"]
-		pass := g.(map[string]interface{})["password"]
+		if v, ok := groupMap["user"].(string); ok {
+			username = v
+		}
+		if v, ok := groupMap["password"].(string); ok {
+			password = v
+		}
+
 		log.Printf("[DEBUG][NewGroupMembershipFromState] Group ID: %s", id)
-		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", srv)
-		log.Printf("[DEBUG][NewGroupMembershipFromState] Group User: %s", user)
-		newGroup := &Grp{
-			GUID:     id.(string),
-			Domain:   srv.(string),
-			Username: user.(string),
-			Password: pass.(string),
-		}
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group Domain: %s", domain)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Group User: %s", username)
 
-		result.Group = newGroup
+		result.Group = &Grp{
+			GUID:     id,
+			Domain:   domain,
+			Username: username,
+			Password: password,
+		}
+		break
 	}
 
-	for _, m := range members.List() {
-		if m == "" {
-			continue
+	for _, m := range membersSet.List() {
+		membersMap := m.(map[string]interface{})
+		ids := membersMap["id"].([]interface{})
+
+		var domain, username, password string
+		if v, ok := membersMap["domain"].(string); ok {
+			domain = v
+		}
+		if v, ok := membersMap["user"].(string); ok {
+			username = v
+		}
+		if v, ok := membersMap["password"].(string); ok {
+			password = v
 		}
 
-		mbrGUID := m.(map[string]interface{})["id"]
-		srv := m.(map[string]interface{})["domain"]
-		user := m.(map[string]interface{})["user"]
-		pass := m.(map[string]interface{})["password"]
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member Domain: %s", domain)
+		log.Printf("[DEBUG][NewGroupMembershipFromState] Member User: %s", username)
 
-		newGroupMember := &GroupMember{
-			Domain:   srv.(string),
-			Username: user.(string),
-			Password: pass.(string),
+		result.GroupMember = &GroupMember{
+			Domain:   domain,
+			Username: username,
+			Password: password,
 		}
-		result.GroupMember = newGroupMember
 
-		log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", mbrGUID)
-		log.Printf("[DEBUG][NewGroupMembershipFromState] Member Domain: %s", srv)
-		log.Printf("[DEBUG][NewGroupMembershipFromState] Member User: %s", user)
-		for _, m := range mbrGUID.([]interface{}) {
-			newMember := &Member{
-				GUID: m.(string),
-			}
-			result.Members = append(result.Members, newMember)
+		for _, id := range ids {
+			memberID := id.(string)
+			log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", memberID)
+			result.Members = append(result.Members, &Member{
+				GUID: memberID,
+			})
 		}
+		break
 	}
-	resJSON, _ := json.Marshal(result)
 
-	log.Printf("[DEBUG][NewGroupMembershipFromState] result : %s", resJSON)
+	if resJSON, err := json.Marshal(result); err == nil {
+		log.Printf("[DEBUG][NewGroupMembershipFromState] result: %s", resJSON)
+	}
 
 	return result, nil
 }
