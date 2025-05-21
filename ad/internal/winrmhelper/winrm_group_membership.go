@@ -27,10 +27,7 @@ type GroupMember struct {
 }
 
 type Member struct {
-	SamAccountName string `json:"SamAccountName"`
-	DN             string `json:"DistinguishedName"`
-	GUID           string `json:"ObjectGUID"`
-	Name           string `json:"Name"`
+	ID string
 }
 
 type GroupMembership struct {
@@ -41,7 +38,7 @@ type GroupMembership struct {
 
 func memberExistsInList(m *Member, memberList []*Member) bool {
 	for _, item := range memberList {
-		if m.GUID == item.GUID {
+		if m.ID == item.ID {
 			return true
 		}
 	}
@@ -71,23 +68,12 @@ func unmarshalMember(input []byte) ([]*Member, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(m) > 0 && m[0].GUID == "" {
+	if len(m) > 0 && m[0].ID == "" {
 		return nil, fmt.Errorf("invalid data while unmarshalling member data, json doc was: %s", string(input))
 	}
 	return m, nil
 }
 
-func getMembershipList(m []*Member) string {
-	out := []string{}
-	for _, member := range m {
-		out = append(out, member.GUID)
-	}
-
-	return strings.Join(out, ",")
-}
-
-// adapt to manage domain, user and password in command options : OK
-// adapt to change output type to Member : OK
 func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*Member, error) {
 	cmd := fmt.Sprintf("Get-ADGroupMember -Identity %q", g.Group.GUID)
 	psOpts := CreatePSCommandOpts{
@@ -156,7 +142,7 @@ $mbrParams = @{
 {{- end }}
 }
 {{- range .Members }}
-$mbrParams['Identity'] = '{{ .SamAccountName }}'
+$mbrParams['Identity'] = '{{ .ID }}'
 $obj = Get-ADObject @mbrParams
 switch ($obj.ObjectClass) {
     'computer'                        { $members += Get-ADComputer @mbrParams }
@@ -340,7 +326,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 			memberID := id.(string)
 			log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", memberID)
 			result.Members = append(result.Members, &Member{
-				GUID: memberID,
+				ID: memberID,
 			})
 		}
 		break
