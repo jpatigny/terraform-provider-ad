@@ -144,12 +144,13 @@ $mbrParams = @{
 }
 {{- range .Members }}
 $mbrParams['Identity'] = '{{ .ID }}'
-$obj = Get-ADObject @mbrParams
+
+$obj = try { Get-ADObject -Identity '{{ .ID }}' @mbrParams } catch { Get-ADObject -Filter "SamAccountName -eq '{{ .ID }}' -or SamAccountName -eq '{{ .ID }}$" @mbrParams }
 switch ($obj.ObjectClass) {
-    'computer'                        { $members += Get-ADComputer @mbrParams }
-    'user'                            { $members += Get-ADUser @mbrParams }
-    'group'                           { $members += Get-ADGroup @mbrParams }
-    'msDS-GroupManagedServiceAccount' { $members += Get-ADServiceAccount @mbrParams }
+    'computer'                        { $members += Get-ADComputer -Identity '{{ .ID }}' @mbrParams }
+    'user'                            { $members += Get-ADUser -Identity '{{ .ID }}' @mbrParams }
+    'group'                           { $members += Get-ADGroup -Identity '{{ .ID }}' @mbrParams }
+    'msDS-GroupManagedServiceAccount' { $members += Get-ADServiceAccount -Identity '{{ .ID }}' @mbrParams }
 }
 {{- end }}
 `
