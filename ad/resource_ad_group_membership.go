@@ -99,7 +99,7 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	memberList := make([]string, len(gm.Members))
 
 	for idx, m := range gm.Members {
-		memberList[idx] = m.GUID
+		memberList[idx] = m.ID
 	}
 	_ = d.Set("members", memberList)
 	_ = d.Set("group", toks[0])
