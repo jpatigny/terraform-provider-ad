@@ -100,6 +100,7 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	if err != nil {
 		return err
 	}
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] gm.Members: %s",  gm.Members)
 	memberList := make([]string, len(gm.Members))
 
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] memberList: %+v", memberList)
