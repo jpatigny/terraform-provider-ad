@@ -251,6 +251,9 @@ func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*Member) 
 	}
 
 	toAdd, toRemove := diffGroupMemberLists(expected, existing)
+    log.Printf("[DEBUG][Update] toAdd: %s", toAdd)
+	log.Printf("[DEBUG][Update] toRemove: %s", toRemove)
+	
 	err = g.addGroupMembers(conf, toAdd)
 	if err != nil {
 		return err
@@ -291,35 +294,22 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 }
 
 func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*GroupMembership, error) {
-	log.Printf("[DEBUG][NewGroupMembershipFromHost] Start of function")
-
 	result := &GroupMembership{
 		Group: &Grp{
 			GUID: groupID,
 		},
 	}
 
-	log.Printf("[DEBUG][NewGroupMembershipFromHost] Retrieving members from AD")
 	gm, err := result.getGroupMembers(conf)
 	if err != nil {
 		return nil, err
 	}
 	result.Members = gm
 
-	// Serialize result to JSON for logging
-	resultJSON, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		log.Printf("[ERROR][NewGroupMembershipFromHost] Failed to serialize result: %v", err)
-	} else {
-		log.Printf("[DEBUG][NewGroupMembershipFromHost] Result: %s", resultJSON)
-	}
-
-	log.Printf("[DEBUG][NewGroupMembershipFromHost] End of function")
 	return result, nil
 }
 
 func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, error) {
-	log.Printf("[DEBUG][NewGroupMembershipFromState] Starting function")
 	groupSet := d.Get("group").(*schema.Set)
 	membersSet := d.Get("members").(*schema.Set)
 
@@ -328,7 +318,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		GroupMember: &GroupMember{},
 		Members:     []*Member{},
 	}
-	log.Printf("[DEBUG][NewGroupMembershipFromState] Looping over group")
+
 	for _, g := range groupSet.List() {
 		groupMap := g.(map[string]interface{})
 		id := groupMap["id"].(string)
@@ -357,7 +347,6 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		break
 	}
 
-    log.Printf("[DEBUG][NewGroupMembershipFromState] Looping over member(s)")
 	for _, m := range membersSet.List() {
 		membersMap := m.(map[string]interface{})
 		ids := membersMap["id"].([]interface{})

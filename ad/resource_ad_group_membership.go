@@ -90,32 +90,20 @@ func resourceADGroupMembership() *schema.Resource {
 }
 
 func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] Start of function")
 	toks := strings.Split(d.Id(), "_")
 
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] Toks: %s", toks[0])
-
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] Calling function NewGroupMembershipFromHost")
 	gm, err := winrmhelper.NewGroupMembershipFromHost(meta.(*config.ProviderConf), toks[0])
 	if err != nil {
 		return err
 	}
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] gm.Members: %s",  gm.Members)
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] length gm.Members: %s", len(gm.Members))
+
 	memberList := make([]string, len(gm.Members))
 
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] memberList: %s", memberList)
-
 	for idx, m := range gm.Members {
-		log.Printf("[DEBUG][resourceADGroupMembershipRead] idx: %s", idx)
-		log.Printf("[DEBUG][resourceADGroupMembershipRead] m.GUID: %s", m.GUID)
 		memberList[idx] = m.GUID
 	}
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] after loop")
-	
-	_ = d.Set("group_members", memberList)
 
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] End of function")
+	_ = d.Set("group_members", memberList)
 	return nil
 }
 
