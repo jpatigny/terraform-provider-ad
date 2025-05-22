@@ -75,29 +75,72 @@ func unmarshalMember(input []byte) ([]*Member, error) {
 }
 
 func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*Member, error) {
-	cmd := fmt.Sprintf("Get-ADGroupMember -Identity %q", g.Group.GUID)
+	const grpMembersTpl = `
+{{- $hasGrpCred := and .Group.Username .Group.Password }}
+{{- $hasGrpServer := .Group.Domain }}
+$grpParams = @{
+  Identity = '{{ .Group.GUID }}'
+{{- if $hasGrpServer }}
+  Server = '{{ .Group.Domain }}'
+{{- end }}
+{{- if $hasGrpCred }}
+  Credential = New-Object System.Management.Automation.PSCredential ("{{ .Group.Username }}", (ConvertTo-SecureString "{{ .Group.Password }}" -AsPlainText -Force))
+{{- end }}
+}
+try {
+    $result = Get-ADGroupMember @grpParams
+} catch {
+    $group = Get-ADGroup -Properties Member @grpParams
+    $result = foreach ($dn in $group.Member) {
+	    $grpParams['Identity'] = $dn
+        $ado = Get-ADObject @grpParams
+        $name = if ($ado.Name -match "^S-\d-\d-\d+") {
+            try {
+                ([System.Security.Principal.SecurityIdentifier]$ado.Name).Translate([System.Security.Principal.NTAccount]).Value
+            } catch {
+                $ado.Name
+            }
+        } else {
+            $ado.Name
+        }
+
+        [PSCustomObject]@{
+            SamAccountName     = $ado.SamAccountName
+            DistinguishedName  = $ado.DistinguishedName
+            ObjectGUID         = $ado.ObjectGUID
+            Name               = $name
+        }
+    }
+	return $result
+}
+`
+	tmpl, err := template.New("psScriptmbr").Parse(grpMembersTpl)
+	if err != nil {
+		return fmt.Errorf("template parse error: %w", err)
+	}
+	var scriptBuf bytes.Buffer
+	err = tmpl.Execute(&scriptBuf, g)
+	if err != nil {
+		return fmt.Errorf("template execution error: %w", err)
+	}
+
 	psOpts := CreatePSCommandOpts{
-		JSONOutput:      true,
-		ForceArray:      true,
+		JSONOutput:      false,
+		ForceArray:      false,
 		ExecLocally:     conf.IsConnectionTypeLocal(),
-		PassCredentials: conf.IsPassCredentialsEnabled(),
-		Username:        conf.Settings.WinRMUsername,
-		Password:        conf.Settings.WinRMPassword,
-		Server:          conf.IdentifyDomainController(),
+		PassCredentials: false,
+		Username:        "",
+		Password:        "",
+		Server:          "",
 	}
 
-	if g.Group.Domain != "" {
-		psOpts.Server = g.Group.Domain
-	}
-	if g.Group.Username != "" && g.Group.Password != "" {
-		psOpts.Username = g.Group.Username
-		psOpts.Password = g.Group.Password
-	}
+	// Create the PowerShell command object
+	cmd := []string{scriptBuf.String()}
 
-	psCmd := NewPSCommand([]string{cmd}, psOpts)
+	psCmd := NewPSCommand(cmd, psOpts)
 	result, err := psCmd.Run(conf)
 	if err != nil {
-		return nil, fmt.Errorf("while running Get-ADGroupMember: %s", err)
+		return nil, fmt.Errorf("while running Get-ADGroupMember: %w", err)
 	} else if result.ExitCode != 0 {
 		return nil, fmt.Errorf("command Get-ADGroupMember exited with a non-zero exit code(%d), stderr: %s, stdout: %s", result.ExitCode, result.StdErr, result.Stdout)
 	}
