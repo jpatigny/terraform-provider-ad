@@ -125,8 +125,8 @@ $result
 	}
 
 	psOpts := CreatePSCommandOpts{
-		JSONOutput:      false,
-		ForceArray:      false,
+		JSONOutput:      true,
+		ForceArray:      true,
 		ExecLocally:     conf.IsConnectionTypeLocal(),
 		PassCredentials: false,
 		Username:        "",
