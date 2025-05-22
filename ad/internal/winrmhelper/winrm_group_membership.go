@@ -116,12 +116,12 @@ try {
 `
 	tmpl, err := template.New("psScriptmbr").Parse(grpMembersTpl)
 	if err != nil {
-		return fmt.Errorf("template parse error: %w", err)
+		return nil, fmt.Errorf("template parse error: %w", err)
 	}
 	var scriptBuf bytes.Buffer
 	err = tmpl.Execute(&scriptBuf, g)
 	if err != nil {
-		return fmt.Errorf("template execution error: %w", err)
+		return nil, fmt.Errorf("template execution error: %w", err)
 	}
 
 	psOpts := CreatePSCommandOpts{
