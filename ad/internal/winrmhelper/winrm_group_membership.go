@@ -112,7 +112,7 @@ try {
         }
     }
 }
-$result
+$result | ConvertTo-Json
 `
 	tmpl, err := template.New("psScriptmbr").Parse(grpMembersTpl)
 	if err != nil {
@@ -125,7 +125,7 @@ $result
 	}
 
 	psOpts := CreatePSCommandOpts{
-		JSONOutput:      true,
+		JSONOutput:      false,
 		ForceArray:      true,
 		ExecLocally:     conf.IsConnectionTypeLocal(),
 		PassCredentials: false,
