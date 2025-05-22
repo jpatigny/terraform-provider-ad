@@ -307,6 +307,7 @@ func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*Gro
 }
 
 func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, error) {
+	log.Printf("[DEBUG][NewGroupMembershipFromState] Starting function")
 	groupSet := d.Get("group").(*schema.Set)
 	membersSet := d.Get("members").(*schema.Set)
 
@@ -315,7 +316,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		GroupMember: &GroupMember{},
 		Members:     []*Member{},
 	}
-
+	log.Printf("[DEBUG][NewGroupMembershipFromState] Looping over group")
 	for _, g := range groupSet.List() {
 		groupMap := g.(map[string]interface{})
 		id := groupMap["id"].(string)
@@ -344,6 +345,7 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		break
 	}
 
+    log.Printf("[DEBUG][NewGroupMembershipFromState] Looping over member(s)")
 	for _, m := range membersSet.List() {
 		membersMap := m.(map[string]interface{})
 		ids := membersMap["id"].([]interface{})
@@ -381,6 +383,6 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 	if resJSON, err := json.Marshal(result); err == nil {
 		log.Printf("[DEBUG][NewGroupMembershipFromState] result: %s", resJSON)
 	}
-
+    log.Printf("[DEBUG][NewGroupMembershipFromState] End function")
 	return result, nil
 }
