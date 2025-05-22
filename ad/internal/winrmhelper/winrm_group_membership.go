@@ -27,7 +27,10 @@ type GroupMember struct {
 }
 
 type Member struct {
-	ID string
+	SamAccountName string `json:"SamAccountName"`
+	DN             string `json:"DistinguishedName"`
+	GUID           string `json:"ObjectGUID"`
+	Name           string `json:"Name"`
 }
 
 type GroupMembership struct {
@@ -68,7 +71,7 @@ func unmarshalMember(input []byte) ([]*Member, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(m) > 0 && m[0].ID == "" {
+	if len(m) > 0 && m[0].GUID == "" {
 		return nil, fmt.Errorf("invalid data while unmarshalling member data, json doc was: %s", string(input))
 	}
 	return m, nil
