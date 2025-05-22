@@ -112,8 +112,8 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 		memberList[idx] = m.GUID
 	}
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] after loop")
-	_ = d.Set("members", memberList)
-	_ = d.Set("group", toks[0])
+	
+	_ = d.Set("group_members", memberList)
 
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] End of function")
 	return nil
