@@ -291,18 +291,20 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 }
 
 func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*GroupMembership, error) {
+	log.Printf("[DEBUG][NewGroupMembershipFromHost] Start of function")
 	result := &GroupMembership{
 		Group: &Grp{
 			GUID: groupID,
 		},
 	}
 
+	log.Printf("[DEBUG][NewGroupMembershipFromHost] Retrieving members from AD")
 	gm, err := result.getGroupMembers(conf)
 	if err != nil {
 		return nil, err
 	}
 	result.Members = gm
-
+    log.Printf("[DEBUG][NewGroupMembershipFromHost] End of function")
 	return result, nil
 }
 
