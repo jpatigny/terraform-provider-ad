@@ -90,19 +90,27 @@ func resourceADGroupMembership() *schema.Resource {
 }
 
 func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] Start of function")
 	toks := strings.Split(d.Id(), "_")
 
+    log.Printf("[DEBUG][resourceADGroupMembershipRead] Toks: %s", toks)
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] Toks: %s", toks[0])
+
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] Calling function NewGroupMembershipFromHost")
 	gm, err := winrmhelper.NewGroupMembershipFromHost(meta.(*config.ProviderConf), toks[0])
 	if err != nil {
 		return err
 	}
 	memberList := make([]string, len(gm.Members))
 
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] looping over members")
 	for idx, m := range gm.Members {
 		memberList[idx] = m.GUID
 	}
 	_ = d.Set("members", memberList)
 	_ = d.Set("group", toks[0])
+
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] End of function")
 	return nil
 }
 
