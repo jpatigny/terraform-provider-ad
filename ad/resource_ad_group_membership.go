@@ -93,7 +93,6 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] Start of function")
 	toks := strings.Split(d.Id(), "_")
 
-    log.Printf("[DEBUG][resourceADGroupMembershipRead] Toks: %s", toks)
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] Toks: %s", toks[0])
 
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] Calling function NewGroupMembershipFromHost")
@@ -103,7 +102,8 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	}
 	memberList := make([]string, len(gm.Members))
 
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] looping over members")
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] memberList: %+v", memberList)
+
 	for idx, m := range gm.Members {
 		memberList[idx] = m.GUID
 	}
