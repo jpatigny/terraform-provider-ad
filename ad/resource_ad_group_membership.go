@@ -104,9 +104,11 @@ func resourceADGroupMembershipRead(d *schema.ResourceData, meta interface{}) err
 	log.Printf("[DEBUG][resourceADGroupMembershipRead] length gm.Members: %s", len(gm.Members))
 	memberList := make([]string, len(gm.Members))
 
-	log.Printf("[DEBUG][resourceADGroupMembershipRead] memberList: %+v", memberList)
+	log.Printf("[DEBUG][resourceADGroupMembershipRead] memberList: %s", memberList)
 
 	for idx, m := range gm.Members {
+		log.Printf("[DEBUG][resourceADGroupMembershipRead] idx: %s", idx)
+		log.Printf("[DEBUG][resourceADGroupMembershipRead] m.GUID: %s", m.GUID)
 		memberList[idx] = m.GUID
 	}
 	_ = d.Set("members", memberList)
