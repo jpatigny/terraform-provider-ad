@@ -292,6 +292,7 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 
 func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*GroupMembership, error) {
 	log.Printf("[DEBUG][NewGroupMembershipFromHost] Start of function")
+
 	result := &GroupMembership{
 		Group: &Grp{
 			GUID: groupID,
@@ -304,7 +305,16 @@ func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*Gro
 		return nil, err
 	}
 	result.Members = gm
-    log.Printf("[DEBUG][NewGroupMembershipFromHost] End of function")
+
+	// Serialize result to JSON for logging
+	resultJSON, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		log.Printf("[ERROR][NewGroupMembershipFromHost] Failed to serialize result: %v", err)
+	} else {
+		log.Printf("[DEBUG][NewGroupMembershipFromHost] Result: %s", resultJSON)
+	}
+
+	log.Printf("[DEBUG][NewGroupMembershipFromHost] End of function")
 	return result, nil
 }
 
