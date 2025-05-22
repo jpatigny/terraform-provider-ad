@@ -111,8 +111,8 @@ try {
             Name               = $name
         }
     }
-	return $result
 }
+$result
 `
 	tmpl, err := template.New("psScriptmbr").Parse(grpMembersTpl)
 	if err != nil {
