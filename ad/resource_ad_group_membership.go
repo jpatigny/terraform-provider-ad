@@ -3,7 +3,7 @@ package ad
 import (
 	"fmt"
 	"strings"
-
+    "log"
 	"github.com/hashicorp/terraform-provider-ad/ad/internal/config"
 
 	"github.com/hashicorp/go-uuid"
