@@ -41,7 +41,7 @@ type GroupMembership struct {
 
 func memberExistsInList(m *Member, memberList []*Member) bool {
 	for _, item := range memberList {
-		if m.ID == item.ID {
+		if m.GUID == item.GUID {
 			return true
 		}
 	}
@@ -369,10 +369,10 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		}
 
 		for _, id := range ids {
-			memberID := id.(string)
-			log.Printf("[DEBUG][NewGroupMembershipFromState] Member ID: %s", memberID)
+			memberGUID := id.(string)
+			log.Printf("[DEBUG][NewGroupMembershipFromState] Member GUID: %s", memberGUID)
 			result.Members = append(result.Members, &Member{
-				ID: memberID,
+				GUID: memberGUID,
 			})
 		}
 		break
