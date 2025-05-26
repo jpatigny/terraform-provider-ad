@@ -40,15 +40,18 @@ type GroupMembership struct {
 }
 
 func memberExistsInList(m *Member, memberList []*Member) bool {
+	log.Printf("[DEBUG][memberExistsInList] Start of function.")
 	for _, item := range memberList {
 		if m.GUID == item.GUID {
 			return true
 		}
 	}
+	log.Printf("[DEBUG][memberExistsInList] End of function.")
 	return false
 }
 
 func diffGroupMemberLists(expectedMembers, existingMembers []*Member) ([]*Member, []*Member) {
+	log.Printf("[DEBUG][diffGroupMemberLists] Start of function.")
 	var toAdd, toRemove []*Member
 	for _, member := range expectedMembers {
 		if !memberExistsInList(member, existingMembers) {
@@ -62,10 +65,12 @@ func diffGroupMemberLists(expectedMembers, existingMembers []*Member) ([]*Member
 		}
 	}
 
+	log.Printf("[DEBUG][diffGroupMemberLists] End of function.")
 	return toAdd, toRemove
 }
 
 func unmarshalMember(input []byte) ([]*Member, error) {
+	log.Printf("[DEBUG][unmarshalMember] Start of function.")
 	var m []*Member
 	err := json.Unmarshal(input, &m)
 	if err != nil {
@@ -74,10 +79,12 @@ func unmarshalMember(input []byte) ([]*Member, error) {
 	if len(m) > 0 && m[0].GUID == "" {
 		return nil, fmt.Errorf("invalid data while unmarshalling member data, json doc was: %s", string(input))
 	}
+	log.Printf("[DEBUG][unmarshalMember] End of function.")
 	return m, nil
 }
 
 func (g *GroupMembership) getGroupMembers(conf *config.ProviderConf) ([]*Member, error) {
+	log.Printf("[DEBUG][getGroupMembers] Start of function.")
 	const grpMembersTpl = `
 {{- $hasGrpCred := and .Group.Username .Group.Password }}
 {{- $hasGrpServer := .Group.Domain }}
@@ -156,11 +163,12 @@ $result | ConvertTo-Json
 	if err != nil {
 		return nil, fmt.Errorf("while unmarshalling group membership response: %s", err)
 	}
-
+	log.Printf("[DEBUG][getGroupMembers] End of function.")
 	return gm, nil
 }
 
 func (g *GroupMembership) bulkGroupMembersOp(conf *config.ProviderConf, operation string, members []*Member) error {
+	log.Printf("[DEBUG][bulkGroupMembersOp] Start of function with operation: %s", operation)
 	if len(members) == 0 {
 		return nil
 	}
@@ -179,7 +187,7 @@ $grpParams = @{
   Credential = New-Object System.Management.Automation.PSCredential ("{{ .Group.Username }}", (ConvertTo-SecureString "{{ .Group.Password }}" -AsPlainText -Force))
 {{- end }}
 }
-$group = Get-ADGroup @grpParams 
+$group = Get-ADGroup @grpParams
 $mbrParams = @{
 {{- if $hasMbrServer }}
   Server = '{{ .GroupMember.Domain }}'
@@ -233,6 +241,7 @@ switch ($obj.ObjectClass) {
 		return fmt.Errorf("command %s exited with a non-zero exit code(%d), stderr: %s, stdout: %s", operation, result.ExitCode, result.StdErr, result.Stdout)
 	}
 
+	log.Printf("[DEBUG][bulkGroupMembersOp] End of function with operation: %s", operation)
 	return nil
 }
 
@@ -245,15 +254,13 @@ func (g *GroupMembership) removeGroupMembers(conf *config.ProviderConf, members 
 }
 
 func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*Member) error {
+	log.Printf("[DEBUG][Update] Start of function.")
 	existing, err := g.getGroupMembers(conf)
 	if err != nil {
 		return err
 	}
 
 	toAdd, toRemove := diffGroupMemberLists(expected, existing)
-    log.Printf("[DEBUG][Update] toAdd: %s", toAdd)
-	log.Printf("[DEBUG][Update] toRemove: %s", toRemove)
-	
 	err = g.addGroupMembers(conf, toAdd)
 	if err != nil {
 		return err
@@ -263,11 +270,12 @@ func (g *GroupMembership) Update(conf *config.ProviderConf, expected []*Member) 
 	if err != nil {
 		return err
 	}
-
+	log.Printf("[DEBUG][Update] End of function.")
 	return nil
 }
 
 func (g *GroupMembership) Create(conf *config.ProviderConf) error {
+	log.Printf("[DEBUG][Create] Start of function.")
 	if len(g.Members) == 0 {
 		return nil
 	}
@@ -276,11 +284,12 @@ func (g *GroupMembership) Create(conf *config.ProviderConf) error {
 	if err != nil {
 		return err
 	}
-
+	log.Printf("[DEBUG][Create] End of function.")
 	return nil
 }
 
 func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
+	log.Printf("[DEBUG][Delete] Start of function.")
 	if len(g.Members) == 0 {
 		return nil
 	}
@@ -289,11 +298,12 @@ func (g *GroupMembership) Delete(conf *config.ProviderConf) error {
 	if err != nil {
 		return err
 	}
-
+	log.Printf("[DEBUG][Delete] End of function.")
 	return nil
 }
 
 func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*GroupMembership, error) {
+	log.Printf("[DEBUG][NewGroupMembershipFromHost] Start of function with groupID: %s", groupID)
 	result := &GroupMembership{
 		Group: &Grp{
 			GUID: groupID,
@@ -305,11 +315,12 @@ func NewGroupMembershipFromHost(conf *config.ProviderConf, groupID string) (*Gro
 		return nil, err
 	}
 	result.Members = gm
-
+	log.Printf("[DEBUG][NewGroupMembershipFromHost] End of function with groupID: %s", groupID)
 	return result, nil
 }
 
 func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, error) {
+	log.Printf("[DEBUG][NewGroupMembershipFromState] Start function")
 	groupSet := d.Get("group").(*schema.Set)
 	membersSet := d.Get("members").(*schema.Set)
 
@@ -381,9 +392,6 @@ func NewGroupMembershipFromState(d *schema.ResourceData) (*GroupMembership, erro
 		break
 	}
 
-	if resJSON, err := json.Marshal(result); err == nil {
-		log.Printf("[DEBUG][NewGroupMembershipFromState] result: %s", resJSON)
-	}
-    log.Printf("[DEBUG][NewGroupMembershipFromState] End function")
+	log.Printf("[DEBUG][NewGroupMembershipFromState] End function")
 	return result, nil
 }
